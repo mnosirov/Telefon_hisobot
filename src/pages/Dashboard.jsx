@@ -259,21 +259,36 @@ const Dashboard = () => {
 
         const mProfit = mRev - mCost - mExp;
         const mProfitUSD = mRevUSD - mCostUSD - mExpUSD;
-        const mCashNet = mCashIn - mExp;
-        const mCashNetUSD = mCashInUSD - mExpUSD;
 
         let inStock = 0, totalP = 0, stockValue = 0, stockValueUSD = 0;
+        let mPurchaseUZS = 0, mPurchaseUSD = 0;
         phonesSnap.forEach((d) => {
           const data = d.data();
-          if (!data.isArchived && !data.isDeleted) {
-            totalP++;
-            if (data.status === 'Sotuvda') {
-              inStock++;
-              stockValue += data.purchasePriceUZS || 0;
-              stockValueUSD += data.purchasePriceUSD || (data.purchasePriceUZS ? data.purchasePriceUZS / (exchangeRate || 12700) : 0);
+          if (!data.isDeleted) {
+            const pDateStr = data.purchaseDate || '';
+            const cDate = data.createdAt?.toDate?.() || null;
+            const cMonthStr = cDate ? `${cDate.getFullYear()}-${String(cDate.getMonth() + 1).padStart(2, '0')}` : '';
+            
+            if (pDateStr.startsWith(selectedMonth) || (!pDateStr && cMonthStr === selectedMonth)) {
+              const pUZS = data.purchasePriceUZS || 0;
+              const pUSD = data.purchasePriceUSD || (pUZS / (exchangeRate || 12700));
+              mPurchaseUZS += pUZS;
+              mPurchaseUSD += pUSD;
+            }
+
+            if (!data.isArchived) {
+              totalP++;
+              if (data.status === 'Sotuvda') {
+                inStock++;
+                stockValue += data.purchasePriceUZS || 0;
+                stockValueUSD += data.purchasePriceUSD || (data.purchasePriceUZS ? data.purchasePriceUZS / (exchangeRate || 12700) : 0);
+              }
             }
           }
         });
+
+        const mCashNet = mCashIn - mExp - mPurchaseUZS;
+        const mCashNetUSD = mCashInUSD - mExpUSD - mPurchaseUSD;
 
         let tDebt = 0, tDebtUSD = 0, overdue = [];
         creditsSnap.forEach((d) => {
@@ -485,7 +500,7 @@ const Dashboard = () => {
         {hasPermission('view_inventory') && <StatCard icon={Smartphone} label="Sotuvda" value={stats?.inStock || 0} sub={`Tannarxi: ${formatCurrency(stats?.stockValue || 0, currency)}`} color="blue" />}
         {hasPermission('manage_credits') && <StatCard icon={AlertCircle} label="Qarzlar" value={formatCurrency(stats?.totalDebt || 0, currency)} sub={`${overdueDebts.length} ta muddati o'tgan`} color={overdueDebts.length > 0 ? 'red' : 'orange'} />}
         {hasPermission('export_reports') && <StatCard icon={DollarSign} label="Oydagi foyda" value={formatCurrency(stats?.monthlyProfit || 0, currency)} sub="Savdo − Tan narx" color={stats?.monthlyProfit >= 0 ? 'green' : 'red'} />}
-        {hasPermission('export_reports') && <StatCard icon={CreditCard} label="Kassa (Naqd)" value={formatCurrency(stats?.monthlyCash || 0, currency)} sub="Kirim − Chiqim" color="indigo" />}
+        {hasPermission('create_sales') && <StatCard icon={CreditCard} label="Kassa (Naqd)" value={formatCurrency(stats?.monthlyCash || 0, currency)} sub="Kirim − Chiqim" color="indigo" />}
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">

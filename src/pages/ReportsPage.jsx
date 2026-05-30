@@ -308,7 +308,8 @@ const ReportsPage = () => {
     return a + pSum;
   }, 0);
 
-  const totalKassa = totalCashIncome + creditPaymentsTotal - totalExpenses;
+  const totalImportsCost = data.imports.reduce((acc, p) => acc + (currency === 'USD' ? (p.purchasePriceUSD || 0) : (p.purchasePriceUZS || 0)), 0);
+  const totalKassa = totalCashIncome + creditPaymentsTotal - totalExpenses - totalImportsCost;
   const totalDebt = data.debts.filter((d) => d.status !== "To'liq to'langan" && d.status !== 'Qaytarilgan').reduce((a, d) => a + (currency === 'USD' ? (d.remainingDebtUSD || d.remainingDebt / (exchangeRate || 12700)) : (d.remainingDebt || 0)), 0);
   const netProfit = totalSalesProfit - totalExpenses;
 

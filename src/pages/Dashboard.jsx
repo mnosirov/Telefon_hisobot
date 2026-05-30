@@ -287,7 +287,10 @@ const Dashboard = () => {
         });
 
         // ── Umumiy kassa balansini hisoblash (barcha vaqt) ──
+        // Formula: Naqd kirimlar − Telefon xarid narxlari − Xarajatlar
         let totalCashUZS = 0, totalCashUSD = 0;
+
+        // 1. Naqd sotuvlardan kirim (faqat kassaga tushgan pullar)
         allSalesSnap.forEach((d) => {
           const data = d.data();
           const r = data.usdRate || exchangeRate || 12700;
@@ -297,25 +300,29 @@ const Dashboard = () => {
           const isBoughtBack = data.status === 'Qayta sotib olingan';
 
           if (isReturned) {
+            // Qaytarilgan: qaytarilgan summani ayiramiz
             const rAmtUZS = Number(data.refundAmountUZS || 0);
             const rAmtUSD = data.refundAmountUSD !== undefined ? Number(data.refundAmountUSD) : (rAmtUZS / r);
-            totalCashUZS += (uzs - rAmtUZS);
-            totalCashUSD += (usd - rAmtUSD);
+            totalCashUZS -= rAmtUZS;
+            totalCashUSD -= rAmtUSD;
           } else if (isBoughtBack) {
+            // Qayta sotib olingan: buyback narxini kassadan chiqaramiz
             const bPriceUZS = Number(data.buybackPriceUZS || 0);
             const bPriceUSD = data.buybackPriceUSD !== undefined ? Number(data.buybackPriceUSD) : (bPriceUZS / r);
-            totalCashUZS += (uzs - bPriceUZS);
-            totalCashUSD += (usd - bPriceUSD);
+            totalCashUZS -= bPriceUZS;
+            totalCashUSD -= bPriceUSD;
           } else if (data.paymentMethod !== 'Nasiya') {
+            // Naqd sotuv: to'liq summa kassaga tushadi
             totalCashUZS += uzs;
             totalCashUSD += usd;
           } else if (data.initialPayment > 0) {
+            // Nasiya: faqat boshlang'ich to'lov kassaga tushadi
             totalCashUZS += data.initialPayment;
             totalCashUSD += data.initialPayment / r;
           }
         });
 
-        // Kredit to'lovlarini qo'shish
+        // 2. Kredit to'lovlarini qo'shish (kassaga tushgan pullar)
         creditsSnap.forEach((d) => {
           const data = d.data();
           if (data.paymentHistory) {
@@ -329,7 +336,37 @@ const Dashboard = () => {
           }
         });
 
-        // Barcha xarajatlarni ayirish
+        // 3. Telefon xarid narxlarini ayirish (kassadan chiqqan pul)
+        // Har bir telefon faqat 1 marta hisoblanadi
+        const countedPhoneIds = new Set();
+
+        // Hali sotilmagan telefonlar (phones kolleksiyasidan)
+        phonesSnap.forEach((d) => {
+          const data = d.data();
+          if (!data.isDeleted && !countedPhoneIds.has(d.id)) {
+            countedPhoneIds.add(d.id);
+            const pUZS = data.purchasePriceUZS || 0;
+            const pUSD = data.purchasePriceUSD || (pUZS / (exchangeRate || 12700));
+            totalCashUZS -= pUZS;
+            totalCashUSD -= pUSD;
+          }
+        });
+
+        // Sotilgan telefonlar (sales kolleksiyasidan, agar phones'da yo'q bo'lsa)
+        allSalesSnap.forEach((d) => {
+          const data = d.data();
+          const phoneId = data.phoneId || d.id;
+          if (data.status !== 'Qaytarilgan' && !countedPhoneIds.has(phoneId)) {
+            countedPhoneIds.add(phoneId);
+            const r = data.usdRate || exchangeRate || 12700;
+            const pUZS = data.purchasePriceUZS || 0;
+            const pUSD = data.purchasePriceUSD || (pUZS / r);
+            totalCashUZS -= pUZS;
+            totalCashUSD -= pUSD;
+          }
+        });
+
+        // 4. Barcha xarajatlarni ayirish (ijara, maosh, va h.k.)
         allExpSnap.forEach((d) => {
           const data = d.data();
           totalCashUZS -= (data.amountUZS || 0);

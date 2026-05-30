@@ -9,7 +9,7 @@ import { useSettings } from '../contexts/SettingsContext';
 import {
   TrendingUp, Smartphone, AlertCircle, DollarSign,
   ShoppingBag, ArrowUp, ArrowDown, Clock, CreditCard,
-  ShieldAlert, Activity, Package, Star,
+  ShieldAlert, Activity, Package, Star, Wallet,
 } from 'lucide-react';
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip,
@@ -91,6 +91,7 @@ const Dashboard = () => {
   const [revenueData, setRevenueData] = useState([]);
   const [brandData, setBrandData] = useState([]);
   const [topPhones, setTopPhones] = useState([]);
+  const [allTimeCash, setAllTimeCash] = useState({ uzs: 0, usd: 0 });
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -124,11 +125,15 @@ const Dashboard = () => {
           creditsSnap,
           monthlySalesSnap,
           monthlyExpSnap,
+          allSalesSnap,
+          allExpSnap,
         ] = await Promise.all([
           getDocs(query(collection(db, 'phones'), ...baseFilter)),
           getDocs(query(collection(db, 'credits'), ...baseFilter)),
           getDocs(query(collection(db, 'sales'), ...baseFilter, where('saleDate', '>=', Timestamp.fromDate(startOfMonth)), where('saleDate', '<=', Timestamp.fromDate(endOfMonth)))),
           getDocs(query(collection(db, 'expenses'), ...baseFilter, where('date', '>=', Timestamp.fromDate(startOfMonth)), where('date', '<=', Timestamp.fromDate(endOfMonth)))),
+          getDocs(query(collection(db, 'sales'), ...baseFilter)),
+          getDocs(query(collection(db, 'expenses'), ...baseFilter)),
         ]);
 
         let mRev = 0, mRevUSD = 0, mCost = 0, mCostUSD = 0, mCount = 0;
@@ -281,6 +286,58 @@ const Dashboard = () => {
           }
         });
 
+        // ── Umumiy kassa balansini hisoblash (barcha vaqt) ──
+        let totalCashUZS = 0, totalCashUSD = 0;
+        allSalesSnap.forEach((d) => {
+          const data = d.data();
+          const r = data.usdRate || exchangeRate || 12700;
+          const uzs = data.salePriceUZS || 0;
+          const usd = data.salePriceUSD || (uzs / r);
+          const isReturned = data.status === 'Qaytarilgan';
+          const isBoughtBack = data.status === 'Qayta sotib olingan';
+
+          if (isReturned) {
+            const rAmtUZS = Number(data.refundAmountUZS || 0);
+            const rAmtUSD = data.refundAmountUSD !== undefined ? Number(data.refundAmountUSD) : (rAmtUZS / r);
+            totalCashUZS += (uzs - rAmtUZS);
+            totalCashUSD += (usd - rAmtUSD);
+          } else if (isBoughtBack) {
+            const bPriceUZS = Number(data.buybackPriceUZS || 0);
+            const bPriceUSD = data.buybackPriceUSD !== undefined ? Number(data.buybackPriceUSD) : (bPriceUZS / r);
+            totalCashUZS += (uzs - bPriceUZS);
+            totalCashUSD += (usd - bPriceUSD);
+          } else if (data.paymentMethod !== 'Nasiya') {
+            totalCashUZS += uzs;
+            totalCashUSD += usd;
+          } else if (data.initialPayment > 0) {
+            totalCashUZS += data.initialPayment;
+            totalCashUSD += data.initialPayment / r;
+          }
+        });
+
+        // Kredit to'lovlarini qo'shish
+        creditsSnap.forEach((d) => {
+          const data = d.data();
+          if (data.paymentHistory) {
+            data.paymentHistory.forEach(pay => {
+              if (pay.notes !== "Boshlang'ich to'lov") {
+                const amt = pay.amount || 0;
+                totalCashUZS += amt;
+                totalCashUSD += amt / (exchangeRate || 12700);
+              }
+            });
+          }
+        });
+
+        // Barcha xarajatlarni ayirish
+        allExpSnap.forEach((d) => {
+          const data = d.data();
+          totalCashUZS -= (data.amountUZS || 0);
+          totalCashUSD -= (data.amountUSD || (data.amountUZS / (exchangeRate || 12700)));
+        });
+
+        setAllTimeCash({ uzs: totalCashUZS, usd: totalCashUSD });
+
         recent.sort((a, b) => (b.saleDate?.toMillis?.() || 0) - (a.saleDate?.toMillis?.() || 0));
 
         setStats({
@@ -373,6 +430,37 @@ const Dashboard = () => {
       </div>
 
       <SubscriptionBanner shopData={shopData} />
+
+      {/* ── Kassadagi naqd pul ── */}
+      <div className="relative overflow-hidden bg-gradient-to-r from-emerald-600 via-emerald-500 to-teal-500 dark:from-emerald-700 dark:via-emerald-600 dark:to-teal-600 rounded-2xl p-6 shadow-lg shadow-emerald-500/20">
+        <div className="absolute top-0 right-0 w-40 h-40 bg-white/10 rounded-full -translate-y-1/2 translate-x-1/2"></div>
+        <div className="absolute bottom-0 left-0 w-24 h-24 bg-white/5 rounded-full translate-y-1/2 -translate-x-1/2"></div>
+        <div className="relative flex items-center justify-between flex-wrap gap-4">
+          <div className="flex items-center gap-4">
+            <div className="w-14 h-14 bg-white/20 backdrop-blur-sm rounded-2xl flex items-center justify-center">
+              <Wallet className="w-7 h-7 text-white" />
+            </div>
+            <div>
+              <p className="text-emerald-100 text-sm font-medium">Kassadagi naqd pul</p>
+              <p className="text-3xl font-extrabold text-white tracking-tight mt-0.5">
+                {formatCurrency(currency === 'USD' ? allTimeCash.usd : allTimeCash.uzs, currency)}
+              </p>
+              <p className="text-emerald-200 text-xs mt-1">
+                Barcha kirim − Barcha chiqim (umumiy balans)
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <div className={`px-3 py-1.5 rounded-full text-sm font-semibold ${
+              (currency === 'USD' ? allTimeCash.usd : allTimeCash.uzs) >= 0
+                ? 'bg-white/20 text-white'
+                : 'bg-red-500/30 text-red-100'
+            }`}>
+              {(currency === 'USD' ? allTimeCash.usd : allTimeCash.uzs) >= 0 ? '✅ Ijobiy' : '⚠️ Salbiy'}
+            </div>
+          </div>
+        </div>
+      </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
         {hasPermission('create_sales') && <StatCard icon={ShoppingBag} label="Oydagi savdo" value={formatCurrency(stats?.monthlyRevenue || 0, currency)} sub={`${stats?.monthlySalesCount || 0} ta sotuv`} color="purple" />}

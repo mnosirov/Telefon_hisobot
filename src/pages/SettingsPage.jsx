@@ -320,7 +320,7 @@ const SettingsPage = () => {
             <input
               type="number"
               value={initialCashUZS}
-              onChange={(e) => setInitialCashUZS(Number(e.target.value) || 0)}
+              onChange={(e) => setInitialCashUZS(e.target.value === '' ? '' : Number(e.target.value))}
               className="input w-full"
               placeholder="0"
               min={0}
@@ -331,7 +331,7 @@ const SettingsPage = () => {
             <input
               type="number"
               value={initialCashUSD}
-              onChange={(e) => setInitialCashUSD(Number(e.target.value) || 0)}
+              onChange={(e) => setInitialCashUSD(e.target.value === '' ? '' : Number(e.target.value))}
               className="input w-full"
               placeholder="0"
               min={0}

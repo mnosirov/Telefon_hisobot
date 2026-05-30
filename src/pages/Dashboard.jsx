@@ -287,8 +287,9 @@ const Dashboard = () => {
         });
 
         // ── Umumiy kassa balansini hisoblash (barcha vaqt) ──
-        // Formula: Sotuvlar kirimi + Kredit to'lovlari − Xarajatlar
-        let totalCashUZS = 0, totalCashUSD = 0;
+        // Formula: Boshlang'ich Sarmoya + Sotuvlar kirimi + Kredit to'lovlari − Xarajatlar − Telefon xaridlari
+        let totalCashUZS = shopData?.initialCashUZS || 0;
+        let totalCashUSD = shopData?.initialCashUSD || 0;
 
         // 1. Sotuvlardan kirim (barcha vaqt)
         allSalesSnap.forEach((d) => {
@@ -309,10 +310,9 @@ const Dashboard = () => {
               totalCashUSD += (usd - rAmtUSD);
             }
           } else if (isBoughtBack) {
-            const bPriceUZS = Number(data.buybackPriceUZS || 0);
-            const bPriceUSD = data.buybackPriceUSD !== undefined ? Number(data.buybackPriceUSD) : (bPriceUZS / r);
-            totalCashUZS += (uzs - bPriceUZS);
-            totalCashUSD += (usd - bPriceUSD);
+            // Buyback: Qayta sotib olingan telefondan kirim (sotib olish narxi 4-bosqichda ayiriladi)
+            totalCashUZS += uzs;
+            totalCashUSD += usd;
           } else if (data.paymentMethod !== 'Nasiya') {
             totalCashUZS += uzs;
             totalCashUSD += usd;
@@ -341,6 +341,17 @@ const Dashboard = () => {
           const data = d.data();
           totalCashUZS -= (data.amountUZS || 0);
           totalCashUSD -= (data.amountUSD || (data.amountUZS / (exchangeRate || 12700)));
+        });
+
+        // 4. Telefon xarid narxlarini ayirish (kassadan chiqqan pul)
+        phonesSnap.forEach((d) => {
+          const data = d.data();
+          if (!data.isDeleted) {
+            const pUZS = data.purchasePriceUZS || 0;
+            const pUSD = data.purchasePriceUSD || (pUZS / (exchangeRate || 12700));
+            totalCashUZS -= pUZS;
+            totalCashUSD -= pUSD;
+          }
         });
 
         setAllTimeCash({ uzs: totalCashUZS, usd: totalCashUSD });

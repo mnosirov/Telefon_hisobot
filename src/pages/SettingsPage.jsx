@@ -41,6 +41,11 @@ const SettingsPage = () => {
   const [testResult, setTestResult] = useState(null); // 'success' | 'error' | null
   const [savingSms, setSavingSms] = useState(false);
 
+  // Capital/starting cash states
+  const [initialCashUZS, setInitialCashUZS] = useState(0);
+  const [initialCashUSD, setInitialCashUSD] = useState(0);
+  const [savingCash, setSavingCash] = useState(false);
+
   useEffect(() => {
     const fetchUsers = async () => {
       try {
@@ -64,8 +69,30 @@ const SettingsPage = () => {
       setSmsOnNewCredit(shopData.smsOnNewCredit ?? true);
       setSmsOnPayment(shopData.smsOnPayment ?? true);
       setSmsOnReminder(shopData.smsOnReminder ?? true);
+      setInitialCashUZS(shopData.initialCashUZS ?? 0);
+      setInitialCashUSD(shopData.initialCashUSD ?? 0);
     }
   }, [shopData]);
+
+  const handleSaveInitialCash = async () => {
+    try {
+      setSavingCash(true);
+      await updateShopSettings({
+        initialCashUZS: Number(initialCashUZS) || 0,
+        initialCashUSD: Number(initialCashUSD) || 0,
+      });
+      await logAction(currentUser.uid, 'initial_cash_updated', {
+        initialCashUZS,
+        initialCashUSD,
+      });
+      toast.success('Sarmoya sozlamalari muvaffaqiyatli saqlandi');
+    } catch (err) {
+      console.error(err);
+      toast.error('Saqlashda xato yuz berdi');
+    } finally {
+      setSavingCash(false);
+    }
+  };
 
   const handleTestConnection = async () => {
     if (!eskizEmail || !eskizPassword) {
@@ -275,6 +302,46 @@ const SettingsPage = () => {
             onKeyPress={(e) => e.key === 'Enter' && handleAddBrand()}
           />
           <button onClick={handleAddBrand} className="btn-primary">Qo'shish</button>
+        </div>
+      </div>
+
+      {/* Kassa boshlang'ich sarmoyasi */}
+      <div className="card p-5">
+        <h2 className="font-semibold text-dark-900 dark:text-white flex items-center gap-2 mb-4">
+          <Settings className="w-5 h-5 text-emerald-500" />
+          Kassa boshlang'ich sarmoyasi (Pul qo'shish)
+        </h2>
+        <p className="text-xs text-dark-400 mb-4">
+          Telefon xarid qilish va boshqa xarajatlar uchun kassaga kiritilgan sarmoya miqdori. Bu summa kassadagi umumiy balansga qo'shiladi.
+        </p>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <label className="label">Boshlang'ich pul (UZS)</label>
+            <input
+              type="number"
+              value={initialCashUZS}
+              onChange={(e) => setInitialCashUZS(Number(e.target.value) || 0)}
+              className="input w-full"
+              placeholder="0"
+              min={0}
+            />
+          </div>
+          <div>
+            <label className="label">Boshlang'ich pul (USD)</label>
+            <input
+              type="number"
+              value={initialCashUSD}
+              onChange={(e) => setInitialCashUSD(Number(e.target.value) || 0)}
+              className="input w-full"
+              placeholder="0"
+              min={0}
+            />
+          </div>
+        </div>
+        <div className="flex justify-end mt-4">
+          <button onClick={handleSaveInitialCash} disabled={savingCash} className="btn-primary">
+            {savingCash ? 'Saqlanmoqda...' : 'Sarmoyani saqlash'}
+          </button>
         </div>
       </div>
 

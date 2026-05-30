@@ -337,30 +337,12 @@ const Dashboard = () => {
         });
 
         // 3. Telefon xarid narxlarini ayirish (kassadan chiqqan pul)
-        // Har bir telefon faqat 1 marta hisoblanadi
-        const countedPhoneIds = new Set();
-
-        // Hali sotilmagan telefonlar (phones kolleksiyasidan)
+        // phones kolleksiyasida BARCHA telefonlar bor (sotuvdagi + sotilganlar)
         phonesSnap.forEach((d) => {
           const data = d.data();
-          if (!data.isDeleted && !countedPhoneIds.has(d.id)) {
-            countedPhoneIds.add(d.id);
+          if (!data.isDeleted) {
             const pUZS = data.purchasePriceUZS || 0;
             const pUSD = data.purchasePriceUSD || (pUZS / (exchangeRate || 12700));
-            totalCashUZS -= pUZS;
-            totalCashUSD -= pUSD;
-          }
-        });
-
-        // Sotilgan telefonlar (sales kolleksiyasidan, agar phones'da yo'q bo'lsa)
-        allSalesSnap.forEach((d) => {
-          const data = d.data();
-          const phoneId = data.phoneId || d.id;
-          if (data.status !== 'Qaytarilgan' && !countedPhoneIds.has(phoneId)) {
-            countedPhoneIds.add(phoneId);
-            const r = data.usdRate || exchangeRate || 12700;
-            const pUZS = data.purchasePriceUZS || 0;
-            const pUSD = data.purchasePriceUSD || (pUZS / r);
             totalCashUZS -= pUZS;
             totalCashUSD -= pUSD;
           }

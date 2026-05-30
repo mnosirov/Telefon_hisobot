@@ -271,11 +271,11 @@ const ReportsPage = () => {
     const rate = s.usdRate || exchangeRate || 12700;
     const sPrice = currency === 'USD' ? (s.salePriceUSD || s.salePriceUZS / rate) : (s.salePriceUZS || 0);
     
-    if (s.status === 'Qaytarilgan' || s.status === 'Qayta sotib olingan') {
-      const refundUZS = s.status === 'Qaytarilgan' ? s.refundAmountUZS : s.buybackPriceUZS;
-      const refundUSD = s.status === 'Qaytarilgan' ? s.refundAmountUSD : s.buybackPriceUSD;
+    if (s.status === 'Qaytarilgan') {
+      const refundUZS = s.refundAmountUZS;
+      const refundUSD = s.refundAmountUSD;
 
-      if (refundUZS !== undefined || s.status === 'Qayta sotib olingan') {
+      if (refundUZS !== undefined) {
         const rAmount = currency === 'USD' 
           ? (refundUSD || (Number(refundUZS || 0) / rate)) 
           : (Number(refundUZS || 0));

@@ -188,11 +188,9 @@ const Dashboard = () => {
 
             // Cash effect
             if (isBoughtBack) {
-              // For Buyback: we gained uzs when sold, but now we paid buybackPrice
-              const bPriceUZS = Number(data.buybackPriceUZS || 0);
-              const bPriceUSD = data.buybackPriceUSD !== undefined ? Number(data.buybackPriceUSD) : (bPriceUZS / r);
-              mCashIn += (uzs - bPriceUZS);
-              mCashInUSD += (usd - bPriceUSD);
+              // Buyback: Qayta sotib olingan telefondan kirim (sotib olish narxi mPurchaseUZS/USD da ayiriladi)
+              mCashIn += uzs;
+              mCashInUSD += usd;
             } else if (data.paymentMethod !== 'Nasiya') {
               mCashIn += uzs;
               mCashInUSD += usd;

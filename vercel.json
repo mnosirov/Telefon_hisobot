@@ -1,0 +1,12 @@
+{
+  "rewrites": [
+    {
+      "source": "/api/eskiz/:path*",
+      "destination": "https://notify.eskiz.uz/api/:path*"
+    },
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
+    }
+  ]
+}

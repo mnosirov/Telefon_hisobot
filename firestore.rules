@@ -1,0 +1,165 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ─── Yordamchi funksiyalar ────────────────────────────────────────
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function userData() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+
+    function getRole() {
+      return userData().role;
+    }
+
+    function getShopId() {
+      return userData().shopId;
+    }
+
+    function isSuperAdmin() {
+      return isSignedIn() && getRole() == 'superadmin';
+    }
+
+    function isAdmin() {
+      return isSignedIn() && (getRole() == 'admin' || getRole() == 'superadmin');
+    }
+
+    function isManager() {
+      return isSignedIn() && (getRole() in ['admin', 'manager', 'superadmin']);
+    }
+
+    function isCashier() {
+      return isSignedIn() && (getRole() in ['admin', 'manager', 'cashier', 'superadmin']);
+    }
+
+    // ─── Muhim: Faqat o'z do'koniga tegishli ma'lumotlar ─────────────
+
+    // Yozuv o'z shopId ga tegishli ekanligini tekshirish
+    function belongsToMyShop(shopIdField) {
+      return isSuperAdmin() || shopIdField == getShopId();
+    }
+
+    // Yangi yozuvga shopId to'g'ri qo'shilayotganini tekshirish
+    function writingToMyShop() {
+      return isSuperAdmin() ||
+             (request.resource.data.shopId == getShopId());
+    }
+
+    // ─── Foydalanuvchilar ─────────────────────────────────────────────
+
+    match /users/{userId} {
+      allow read: if isSignedIn() && (
+        request.auth.uid == userId ||        // O'zini o'qish
+        isAdmin() ||                          // Admin barcha userlarni ko'ra oladi
+        isSuperAdmin()
+      );
+      allow write: if isAdmin() || isSuperAdmin();
+    }
+
+    // ─── Telefonlar ───────────────────────────────────────────────────
+
+    match /phones/{id} {
+      allow read: if isSuperAdmin() || (isCashier() && belongsToMyShop(resource.data.shopId));
+      allow create: if isSuperAdmin() || (isManager() && writingToMyShop());
+      allow update: if isSuperAdmin() || (isManager() && belongsToMyShop(resource.data.shopId));
+      allow delete: if isSuperAdmin() || (isAdmin() && belongsToMyShop(resource.data.shopId));
+    }
+
+    // ─── Sotuvlar ─────────────────────────────────────────────────────
+
+    match /sales/{id} {
+      allow read: if isSuperAdmin() || (isCashier() && belongsToMyShop(resource.data.shopId));
+      allow create: if isSuperAdmin() || (isCashier() && writingToMyShop());
+      allow update: if isSuperAdmin() || (isManager() && belongsToMyShop(resource.data.shopId));
+      allow delete: if isSuperAdmin() || (isAdmin() && belongsToMyShop(resource.data.shopId));
+    }
+
+    // ─── Qarzlar ──────────────────────────────────────────────────────
+
+    match /credits/{id} {
+      allow read: if isSuperAdmin() || (isCashier() && belongsToMyShop(resource.data.shopId));
+      allow create: if isSuperAdmin() || (isCashier() && writingToMyShop());
+      allow update: if isSuperAdmin() || (isManager() && belongsToMyShop(resource.data.shopId));
+      allow delete: if isSuperAdmin() || (isAdmin() && belongsToMyShop(resource.data.shopId));
+    }
+
+    // ─── Xarajatlar ───────────────────────────────────────────────────
+
+    match /expenses/{id} {
+      allow read: if isSuperAdmin() || (isManager() && belongsToMyShop(resource.data.shopId));
+      allow create: if isManager() && writingToMyShop();
+      allow update: if isManager() && belongsToMyShop(resource.data.shopId);
+      allow delete: if isAdmin() && belongsToMyShop(resource.data.shopId);
+    }
+
+    // ─── Kontaktlar ───────────────────────────────────────────────────
+
+    match /contacts/{id} {
+      allow read: if isSuperAdmin() || (isManager() && belongsToMyShop(resource.data.shopId));
+      allow create: if isCashier() && writingToMyShop();
+      allow update: if isManager() && belongsToMyShop(resource.data.shopId);
+      allow delete: if isAdmin() && belongsToMyShop(resource.data.shopId);
+    }
+
+    // ─── Qaytarishlar ─────────────────────────────────────────────────
+
+    match /returns/{id} {
+      allow read: if isSuperAdmin() || (isManager() && belongsToMyShop(resource.data.shopId));
+      allow create: if isCashier() && writingToMyShop();
+      allow update: if isManager() && belongsToMyShop(resource.data.shopId);
+      allow delete: if isAdmin() && belongsToMyShop(resource.data.shopId);
+    }
+
+    // ─── Faoliyat jurnali (o'chirib bo'lmaydi) ────────────────────────
+
+    match /activityLogs/{id} {
+      allow read: if isAdmin();
+      allow create: if isSignedIn();
+      allow update, delete: if false;
+    }
+
+    match /auditLogs/{id} {
+      allow read: if isSuperAdmin();
+      allow create: if isSignedIn();
+      allow update, delete: if false;
+    }
+
+    // ─── Do'konlar (faqat superadmin) ─────────────────────────────────
+
+    match /shops/{id} {
+      allow read: if isSignedIn();
+      allow update: if isSignedIn() && id == getShopId();
+      allow write: if isSuperAdmin();
+    }
+
+    // ─── Tizim sozlamalari ────────────────────────────────────────────
+
+    match /systemSettings/{id} {
+      allow read: if isSignedIn();
+      allow write: if isSuperAdmin();
+    }
+
+    match /rolePermissions/{id} {
+      allow read: if isSignedIn();
+      allow write: if isSuperAdmin();
+    }
+
+    match /notifications/{id} {
+      allow read: if isSignedIn();
+      allow create, delete: if isSuperAdmin();
+      allow update: if isSignedIn();
+    }
+
+    match /documents/{id} {
+      allow read: if isManager() && belongsToMyShop(resource.data.shopId);
+      allow create: if isManager() && writingToMyShop();
+      allow update: if isManager() && belongsToMyShop(resource.data.shopId);
+      allow delete: if isAdmin() && belongsToMyShop(resource.data.shopId);
+    }
+
+  }
+}

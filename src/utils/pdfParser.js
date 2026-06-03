@@ -1,4 +1,4 @@
-import { BRANDS, CONDITIONS, COLORS, STORAGE_OPTIONS, RAM_OPTIONS } from './constants';
+import { BRANDS, COLORS, STORAGE_OPTIONS, RAM_OPTIONS } from './constants';
 import { getTashkentDateString } from './helpers';
 
 // PDF.js dinamik yuklash
@@ -126,7 +126,6 @@ export const parseTextLine = (line) => {
 
   // 4. Rangni topish
   let color = '';
-  let matchedColorKey = '';
   const colorMap = {
     black: 'Qora',
     white: 'Oq',
@@ -148,7 +147,6 @@ export const parseTextLine = (line) => {
     const regex = new RegExp('\\b' + eng + '\\b', 'i');
     if (regex.test(cleanLine)) {
       color = uz;
-      matchedColorKey = eng;
       break;
     }
   }
@@ -161,7 +159,6 @@ export const parseTextLine = (line) => {
     });
     if (matchedColor) {
       color = matchedColor;
-      matchedColorKey = matchedColor.toLowerCase();
     }
   }
 

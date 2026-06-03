@@ -1,5 +1,5 @@
 import * as XLSX from 'xlsx';
-import { BRANDS, CONDITIONS, COLORS, STORAGE_OPTIONS, RAM_OPTIONS } from './constants';
+import { BRANDS, COLORS, STORAGE_OPTIONS, RAM_OPTIONS } from './constants';
 import { getTashkentDateString } from './helpers';
 
 // Heuristik moslashtirish funktsiyalari

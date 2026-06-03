@@ -13,6 +13,7 @@ import { z } from 'zod';
 import toast from 'react-hot-toast';
 import Modal from '../components/ui/Modal';
 import ConfirmDialog from '../components/ui/ConfirmDialog';
+import ImportModal from '../components/phones/ImportModal';
 import Pagination from '../components/ui/Pagination';
 import LoadingSpinner from '../components/ui/LoadingSpinner';
 import {
@@ -59,6 +60,7 @@ const PhonesPage = () => {
   const [phones, setPhones] = useState([]);
   const [loading, setLoading] = useState(true);
   const [modalOpen, setModalOpen] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
   const [detailOpen, setDetailOpen] = useState(false);
   const [deleteDialog, setDeleteDialog] = useState({ open: false, id: null });
   const [editingPhone, setEditingPhone] = useState(null);
@@ -512,9 +514,18 @@ const PhonesPage = () => {
             {showArchived ? "Sotuvdagilarni ko'rish" : "Arxivni ko'rish"}
           </button>
           {hasPermission('add_phone') && (
-            <button onClick={openAdd} className="btn-primary">
-              <Plus className="w-4 h-4" /> Telefon qo'shish
-            </button>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setImportOpen(true)}
+                className="flex items-center gap-2 px-3 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-sm font-medium transition-colors"
+              >
+                <Upload className="w-4 h-4" />
+                <span className="hidden sm:inline">Import (Excel/PDF)</span>
+              </button>
+              <button onClick={openAdd} className="btn-primary">
+                <Plus className="w-4 h-4" /> Telefon qo'shish
+              </button>
+            </div>
           )}
         </div>
       </div>
@@ -1309,6 +1320,13 @@ const PhonesPage = () => {
           )}
         </div>
       )}
+
+      {/* Import Modal */}
+      <ImportModal
+        isOpen={importOpen}
+        onClose={() => setImportOpen(false)}
+        onImportSuccess={fetchPhones}
+      />
     </div>
   );
 };

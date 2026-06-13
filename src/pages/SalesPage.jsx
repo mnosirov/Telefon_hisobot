@@ -221,11 +221,20 @@ const SalesPage = () => {
 
       await addDoc(collection(db, 'sales'), payload);
 
-      if (data.buyerName) {
-        await addDoc(collection(db, 'contacts'), {
-          name: data.buyerName, phone: data.buyerPhone || '',
-          type: 'buyer', shopId, createdAt: serverTimestamp(),
-        });
+      if (data.buyerName && data.buyerName.toLowerCase() !== 'nomalum') {
+        const existSnap = await getDocs(query(
+          collection(db, 'contacts'),
+          where('shopId', '==', shopId),
+          where('name', '==', data.buyerName),
+          where('phone', '==', data.buyerPhone || ''),
+          where('type', '==', 'buyer')
+        ));
+        if (existSnap.empty) {
+          await addDoc(collection(db, 'contacts'), {
+            name: data.buyerName, phone: data.buyerPhone || '',
+            type: 'buyer', shopId, createdAt: serverTimestamp(),
+          });
+        }
       }
 
       await updateDoc(doc(db, 'phones', data.phoneId), {

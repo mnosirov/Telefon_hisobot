@@ -125,17 +125,28 @@ const SalesPage = () => {
       setLoading(true);
       const [salesSnap, phonesSnap] = await Promise.all([
         getDocs(query(collection(db, 'sales'), where('shopId', '==', shopId))),
-        getDocs(query(collection(db, 'phones'), where('shopId', '==', shopId), where('status', '==', 'Sotuvda'))),
+        getDocs(query(collection(db, 'phones'), where('shopId', '==', shopId))),
       ]);
+      const phoneMap = {};
+      const phonesData = [];
+      phonesSnap.forEach((d) => {
+        const p = { id: d.id, ...d.data() };
+        phoneMap[d.id] = p;
+        if (p.status === 'Sotuvda' && !p.isDeleted && !p.isArchived) phonesData.push(p);
+      });
       const salesData = [];
-      salesSnap.forEach((d) => salesData.push({ id: d.id, ...d.data() }));
+      salesSnap.forEach((d) => {
+        const s = { id: d.id, ...d.data() };
+        if (s.phoneId && phoneMap[s.phoneId]?.uzimei) {
+          s.uzimei = phoneMap[s.phoneId].uzimei;
+        }
+        salesData.push(s);
+      });
       salesData.sort((a, b) => {
         const aTime = a.saleDate?.toMillis?.() || a.createdAt?.toMillis?.() || 0;
         const bTime = b.saleDate?.toMillis?.() || b.createdAt?.toMillis?.() || 0;
         return bTime - aTime;
       });
-      const phonesData = [];
-      phonesSnap.forEach((d) => phonesData.push({ id: d.id, ...d.data() }));
       setSales(salesData);
       setPhones(phonesData);
     } catch {

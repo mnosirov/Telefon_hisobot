@@ -52,17 +52,16 @@ const ReportsPage = () => {
           where('saleDate', '<=', to)
         )
       );
-      const sales = [];
-      salesSnap.forEach((d) => sales.push({ id: d.id, ...d.data() }));
-
-      // Inventory (all phones)
+      // Inventory (all phones) — fetched first to build phoneMap for sale enrichment
       const phonesSnap = await getDocs(
         query(collection(db, 'phones'), where('shopId', '==', shopId))
       );
+      const phoneMap = {};
       const inventory = [];
       const imports = [];
       phonesSnap.forEach((d) => {
         const pData = d.data();
+        phoneMap[d.id] = pData;
         if (!pData.isDeleted) {
           if (!pData.isArchived) {
             inventory.push({ id: d.id, ...pData });
@@ -72,6 +71,16 @@ const ReportsPage = () => {
             imports.push({ id: d.id, ...pData });
           }
         }
+      });
+
+      // Enrich sales with current phone uzimei (sale record may have stale "O'tmagan")
+      const sales = [];
+      salesSnap.forEach((d) => {
+        const s = { id: d.id, ...d.data() };
+        if (s.phoneId && phoneMap[s.phoneId]?.uzimei) {
+          s.uzimei = phoneMap[s.phoneId].uzimei;
+        }
+        sales.push(s);
       });
 
       // Debts

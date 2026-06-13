@@ -35,14 +35,14 @@ const ContactsPage = () => {
         const name = (sale.buyerName || '').trim() || 'Nomalum';
         const phone = (sale.buyerPhone || '').trim();
 
-        // "Nomalum" va telefonsiz xaridorlar ALOHIDA guruhda
+        // "Nomalum" + telefonsiz → har bir sotuv ALOHIDA qator (sanasi ko'rinsin)
         const isAnon = name.toLowerCase() === 'nomalum' && !phone;
-        const key = isAnon ? '__anon__' : `${name.toLowerCase()}|||${phone}`;
+        const key = isAnon ? `__anon__${d.id}` : `${name.toLowerCase()}|||${phone}`;
 
         if (!buyersMap[key]) {
           buyersMap[key] = {
             id: key,
-            name: isAnon ? 'Nomalum (anonim)' : name,
+            name: isAnon ? 'Nomalum' : name,
             phone,
             type: 'buyer',
             items: [],

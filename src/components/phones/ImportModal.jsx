@@ -13,7 +13,7 @@ import { Upload, FileText, Clipboard, AlertCircle, Check, Trash2, HelpCircle } f
 
 const ImportModal = ({ isOpen, onClose, onImportSuccess }) => {
   const { currentUser, userProfile, logAction } = useAuth();
-  const { usdRate } = useSettings();
+  const { exchangeRate } = useSettings();
   const shopId = userProfile?.shopId;
 
   const [activeTab, setActiveTab] = useState('file'); // 'file' or 'text'
@@ -173,13 +173,13 @@ const ImportModal = ({ isOpen, onClose, onImportSuccess }) => {
     setLoading(true);
     let successCount = 0;
     try {
-      const rate = usdRate || 12700;
-      
+      const rate = exchangeRate || 12700;
+
       // Barcha telefonlarni Firestore-ga ketma-ket yozish
       for (const phone of selectedPhones) {
         const cleanImei = phone.imei?.replace(/\D/g, '') || '';
         const cleanImei2 = phone.imei2?.replace(/\D/g, '') || '';
-        
+
         const purchasePriceUSD = Number(phone.purchasePrice) || 0;
         const purchasePriceUZS = purchasePriceUSD * rate;
 
@@ -240,7 +240,7 @@ const ImportModal = ({ isOpen, onClose, onImportSuccess }) => {
             <AlertCircle className="w-5 h-5 text-primary-500 flex-shrink-0" />
             <span>Excel jadvalini yuklang, PDF hisobotni tanlang yoki shunchaki ro'yxat matnini nusxalash orqali barcha telefonlarni ommaviy kiriting.</span>
           </div>
-          <button 
+          <button
             onClick={() => setShowHelp(!showHelp)}
             className="text-xs text-primary-500 font-semibold hover:underline flex items-center gap-1"
           >
@@ -248,6 +248,7 @@ const ImportModal = ({ isOpen, onClose, onImportSuccess }) => {
             {showHelp ? "Yordamni yopish" : "Shablon yordami"}
           </button>
         </div>
+
 
         {showHelp && (
           <div className="card p-4 bg-indigo-50/50 dark:bg-indigo-950/20 border-indigo-100 dark:border-indigo-900 text-xs text-dark-600 dark:text-dark-300 space-y-2 leading-relaxed">

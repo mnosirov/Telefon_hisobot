@@ -186,22 +186,15 @@ export const parseTextLine = (line) => {
     purchaseDate = dateMatch[0];
   }
 
-  // 8. Narxni topish (USD)
+  // 8. Narxni topish (faqat USD)
   let purchasePrice = 0;
   let matchedPriceText = '';
   const usdRegex = /(?:\$|usd)\s*(\d+(?:\.\d+)?)|(\d+(?:\.\d+)?)\s*(?:\$|usd)/i;
   const usdMatch = cleanLine.match(usdRegex);
-  
-  const uzsRegex = /(\d+[\s.]?\d+[\s.]?\d+)\s*(?:so'm|som|uzs|sum)/i;
-  const uzsMatch = cleanLine.match(uzsRegex);
 
   if (usdMatch) {
     purchasePrice = parseFloat(usdMatch[1] || usdMatch[2]) || 0;
     matchedPriceText = usdMatch[0];
-  } else if (uzsMatch) {
-    const rawUzs = parseFloat(uzsMatch[1].replace(/[\s.]/g, '')) || 0;
-    purchasePrice = Math.round((rawUzs / 12700) * 100) / 100;
-    matchedPriceText = uzsMatch[0];
   } else {
     const numbers = cleanLine.match(/\b\d+(?:\.\d+)?\b/g) || [];
     for (const numStr of numbers) {

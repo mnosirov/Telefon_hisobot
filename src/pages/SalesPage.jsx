@@ -89,7 +89,7 @@ const SalesPage = () => {
   const { register, handleSubmit, reset, watch, formState: { errors }, setValue } = useForm({
     resolver: zodResolver(schema),
     defaultValues: {
-      salePriceCurrency: currency || 'UZS',
+      salePriceCurrency: 'USD',
       saleDate: getTashkentDateString(),
       isPaid: true,
     },
@@ -99,15 +99,11 @@ const SalesPage = () => {
     reset({
       saleDate: getTashkentDateString(),
       isPaid: true,
-      salePriceCurrency: currency || 'UZS',
+      salePriceCurrency: 'USD',
     });
     setPhoneSearch('');
     setModalOpen(true);
   };
-
-  useEffect(() => {
-    if (currency) setValue('salePriceCurrency', currency);
-  }, [currency, setValue]);
 
   const watchPhone = watch('phoneId');
   const selectedPhone = phones.find((p) => p.id === watchPhone);
@@ -249,7 +245,7 @@ const SalesPage = () => {
       buyerName: sale.buyerName,
       buyerPhone: sale.buyerPhone || '',
       saleDate: getTashkentDateString(sale.saleDate),
-      salePriceCurrency: sale.salePriceCurrency,
+      salePriceCurrency: 'USD',
       salePrice: sale.salePrice,
       paymentMethod: sale.paymentMethod,
       isPaid: sale.isPaid !== undefined ? sale.isPaid : true,
@@ -334,8 +330,8 @@ const SalesPage = () => {
       reason: '',
       customReason: '',
       newPhoneStatus: 'Nuqsonli',
-      refundAmount: sale.salePriceUSD || sale.salePriceUZS || '',
-      refundCurrency: sale.salePriceUSD ? 'USD' : 'UZS',
+      refundAmount: sale.salePriceUSD || '',
+      refundCurrency: 'USD',
     });
     setReturnModal({ open: true, sale });
   };
@@ -355,9 +351,8 @@ const SalesPage = () => {
       const { sale } = returnModal;
 
       const refundAmt = Number(returnForm.refundAmount) || 0;
-      const refundCur = returnForm.refundCurrency || 'UZS';
-      const refundUSD = refundCur === 'USD' ? refundAmt : refundAmt / usdRate;
-      const refundUZS = refundCur === 'UZS' ? refundAmt : refundAmt * usdRate;
+      const refundUSD = refundAmt;
+      const refundUZS = refundAmt * (usdRate || exchangeRate || 12700);
 
       await addDoc(collection(db, 'returns'), {
         shopId,
@@ -372,7 +367,7 @@ const SalesPage = () => {
         refundAmount: refundUZS,
         refundAmountUSD: refundUSD,
         refundAmountUZS: refundUZS,
-        refundCurrency: refundCur,
+        refundCurrency: 'USD',
         usdRate,
         returnedAt: serverTimestamp(),
         returnedBy: currentUser.uid,
@@ -385,7 +380,7 @@ const SalesPage = () => {
         returnedAt: serverTimestamp(),
         refundAmountUSD: refundUSD,
         refundAmountUZS: refundUZS,
-        refundCurrency: refundCur,
+        refundCurrency: 'USD',
       });
 
       if (sale.phoneId) {
@@ -844,19 +839,14 @@ const SalesPage = () => {
               <input {...register('buyerPhone')} className="input" placeholder="+998..." />
             </div>
           </div>
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="label">Valyuta *</label>
-              <select {...register('salePriceCurrency')} className="input">
-                <option value="UZS">UZS</option>
-                <option value="USD">USD</option>
-              </select>
+          <input type="hidden" {...register('salePriceCurrency')} value="USD" />
+          <div>
+            <label className="label">Sotuv narxi (USD) *</label>
+            <div className="relative">
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-green-600 font-bold">$</span>
+              <input {...register('salePrice', { valueAsNumber: true })} type="number" className="input pl-7" placeholder="0.00" step="0.01" />
             </div>
-            <div>
-              <label className="label">Sotuv narxi *</label>
-              <input {...register('salePrice', { valueAsNumber: true })} type="number" className="input" placeholder="0" />
-              {errors.salePrice && <p className="text-red-500 text-xs mt-1">{errors.salePrice.message}</p>}
-            </div>
+            {errors.salePrice && <p className="text-red-500 text-xs mt-1">{errors.salePrice.message}</p>}
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div>
@@ -1000,57 +990,21 @@ const SalesPage = () => {
 
             {/* Qaytarilgan summa */}
             <div>
-              <label className="label">Qaytarilgan summa</label>
-              <div className="flex gap-2">
-                {/* Valyuta tanlash */}
-                <div className="flex rounded-lg border border-dark-200 dark:border-dark-600 overflow-hidden flex-shrink-0">
-                  <button
-                    type="button"
-                    onClick={() => setReturnForm({ ...returnForm, refundCurrency: 'USD' })}
-                    className={`px-3 py-2 text-sm font-bold transition-colors ${
-                      returnForm.refundCurrency === 'USD'
-                        ? 'bg-green-500 text-white'
-                        : 'bg-white dark:bg-dark-800 text-dark-500 hover:bg-dark-50 dark:hover:bg-dark-700'
-                    }`}
-                  >
-                    $
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setReturnForm({ ...returnForm, refundCurrency: 'UZS' })}
-                    className={`px-3 py-2 text-sm font-bold transition-colors ${
-                      returnForm.refundCurrency === 'UZS'
-                        ? 'bg-blue-500 text-white'
-                        : 'bg-white dark:bg-dark-800 text-dark-500 hover:bg-dark-50 dark:hover:bg-dark-700'
-                    }`}
-                  >
-                    so'm
-                  </button>
-                </div>
+              <label className="label">Qaytarilgan summa (USD)</label>
+              <div className="relative">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-green-600 font-bold">$</span>
                 <input
                   type="number"
                   value={returnForm.refundAmount}
-                  onChange={(e) => setReturnForm({ ...returnForm, refundAmount: e.target.value })}
-                  className="input flex-1"
-                  placeholder="0"
+                  onChange={(e) => setReturnForm({ ...returnForm, refundAmount: e.target.value, refundCurrency: 'USD' })}
+                  className="input pl-7"
+                  placeholder="0.00"
+                  step="0.01"
                 />
               </div>
-              {/* Konvertatsiya ko'rsatish */}
-              <div className="mt-1.5 flex items-center justify-between">
-                <p className="text-xs text-dark-400">
-                  Sotuv narxi: <span className="font-medium">{formatUSD(returnModal.sale.salePriceUSD)}</span>
-                  <span className="mx-1 text-dark-300">|</span>
-                  {formatUZS(returnModal.sale.salePriceUZS)}
-                </p>
-                {returnForm.refundAmount > 0 && (
-                  <p className="text-xs text-primary-500 font-medium">
-                    ≈ {returnForm.refundCurrency === 'USD'
-                      ? formatUZS(Number(returnForm.refundAmount) * usdRate)
-                      : formatUSD(Number(returnForm.refundAmount) / usdRate)
-                    }
-                  </p>
-                )}
-              </div>
+              <p className="text-xs text-dark-400 mt-1">
+                Sotuv narxi: <span className="font-medium">{formatUSD(returnModal.sale.salePriceUSD)}</span>
+              </p>
             </div>
 
             <div className="flex justify-end gap-3 pt-2">
@@ -1155,57 +1109,22 @@ const SalesPage = () => {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="label">Qayta sotib olish narxi ({buybackForm.currency}) *</label>
-                  <div className="relative">
-                    <input
-                      type="number"
-                      value={buybackForm.price}
-                      onChange={(e) => setBuybackForm({ ...buybackForm, price: e.target.value })}
-                      className="input pl-8"
-                      placeholder="0.00"
-                      required
-                    />
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-medium">
-                      {buybackForm.currency === 'USD' ? '$' : 'S'}
-                    </span>
-                  </div>
-                </div>
-
-                <div>
-                  <label className="label">
-                    {buybackForm.currency === 'USD' ? 'UZS ekvivalenti' : 'USD ekvivalenti'}
-                  </label>
-                  <div className="input bg-slate-800/50 flex items-center text-slate-400 select-none">
-                    {buybackForm.currency === 'USD' 
-                      ? formatUZS(Number(buybackForm.price || 0) * Number(buybackForm.usdRate || 0))
-                      : formatUSD(Number(buybackForm.price || 0) / Number(buybackForm.usdRate || 1))
-                    }
-                  </div>
+              <div>
+                <label className="label">Qayta sotib olish narxi (USD) *</label>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-green-500 font-bold">$</span>
+                  <input
+                    type="number"
+                    value={buybackForm.price}
+                    onChange={(e) => setBuybackForm({ ...buybackForm, price: e.target.value, currency: 'USD' })}
+                    className="input pl-8"
+                    placeholder="0.00"
+                    step="0.01"
+                    required
+                  />
                 </div>
               </div>
 
-              <div className="flex gap-2">
-                <button
-                  type="button"
-                  onClick={() => setBuybackForm({ ...buybackForm, currency: 'USD' })}
-                  className={`flex-1 py-1.5 rounded-lg text-xs font-medium transition-colors ${
-                    buybackForm.currency === 'USD' ? 'bg-blue-500 text-white' : 'bg-slate-800 text-slate-400 hover:bg-slate-700'
-                  }`}
-                >
-                  USD
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setBuybackForm({ ...buybackForm, currency: 'UZS' })}
-                  className={`flex-1 py-1.5 rounded-lg text-xs font-medium transition-colors ${
-                    buybackForm.currency === 'UZS' ? 'bg-blue-500 text-white' : 'bg-slate-800 text-slate-400 hover:bg-slate-700'
-                  }`}
-                >
-                  UZS
-                </button>
-              </div>
             </div>
 
             <div>
@@ -1293,19 +1212,14 @@ const SalesPage = () => {
               <input {...register('buyerPhone')} className="input" placeholder="+998..." />
             </div>
           </div>
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="label">Valyuta *</label>
-              <select {...register('salePriceCurrency')} className="input">
-                <option value="UZS">UZS</option>
-                <option value="USD">USD</option>
-              </select>
+          <input type="hidden" {...register('salePriceCurrency')} value="USD" />
+          <div>
+            <label className="label">Sotuv narxi (USD) *</label>
+            <div className="relative">
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-green-600 font-bold">$</span>
+              <input {...register('salePrice', { valueAsNumber: true })} type="number" className="input pl-7" placeholder="0.00" step="0.01" />
             </div>
-            <div>
-              <label className="label">Sotuv narxi *</label>
-              <input {...register('salePrice', { valueAsNumber: true })} type="number" className="input" placeholder="0" />
-              {errors.salePrice && <p className="text-red-500 text-xs mt-1">{errors.salePrice.message}</p>}
-            </div>
+            {errors.salePrice && <p className="text-red-500 text-xs mt-1">{errors.salePrice.message}</p>}
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div>

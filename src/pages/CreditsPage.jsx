@@ -31,7 +31,7 @@ const creditSchema = z.object({
   months: z.number({ coerce: true }).min(1).default(1),
   markupPercent: z.number({ coerce: true }).min(0).default(0),
   cashPrice: z.number({ coerce: true }).min(0).default(0),
-  currency: z.enum(['UZS', 'USD']).default('UZS'),
+  currency: z.enum(['UZS', 'USD']).default('USD'),
   notes: z.string().optional(),
 });
 
@@ -77,14 +77,14 @@ const CreditsPage = () => {
 
   const { register: regCredit, handleSubmit: hCredit, reset: rCredit, watch, setValue, formState: { errors: eCredit } } = useForm({
     resolver: zodResolver(creditSchema),
-    defaultValues: { 
+    defaultValues: {
       saleDate: initialSaleDate,
       dueDate: initialDueDate,
       initialPayment: 0,
       months: 1,
       markupPercent: 0,
       cashPrice: 0,
-      currency: 'UZS'
+      currency: 'USD'
     },
   });
 
@@ -401,7 +401,7 @@ const CreditsPage = () => {
       await logAction(currentUser.uid, 'sale_created', { type: 'credit', buyer: data.buyerName });
       toast.success('Qarzga sotuv qo\'shildi');
       setAddModalOpen(false);
-      rCredit();
+      rCredit({ currency: 'USD', saleDate: getTashkentDateString(), dueDate: getInitialDueDate(getTashkentDateString()), initialPayment: 0, months: 1, markupPercent: 0, cashPrice: 0 });
       fetchData();
     } catch (err) {
       console.error(err);
@@ -587,14 +587,14 @@ const CreditsPage = () => {
             onClick={() => { 
               const today = getTashkentDateString();
               const due = getInitialDueDate(today);
-              rCredit({ 
+              rCredit({
                 saleDate: today,
                 dueDate: due,
                 initialPayment: 0,
                 months: 1,
                 markupPercent: 0,
                 cashPrice: 0,
-                currency: 'UZS'
+                currency: 'USD'
               }); 
               setAddModalOpen(true); 
             }} 
@@ -829,18 +829,10 @@ const CreditsPage = () => {
             </div>
           )}
 
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="label">Valyuta</label>
-              <select {...regCredit('currency')} className="input">
-                <option value="UZS">UZS (So'm)</option>
-                <option value="USD">USD (Dollar)</option>
-              </select>
-            </div>
-            <div>
-              <label className="label">Sotuv sanasi</label>
-              <input {...regCredit('saleDate')} type="date" className="input" />
-            </div>
+          <input type="hidden" {...regCredit('currency')} value="USD" />
+          <div>
+            <label className="label">Sotuv sanasi</label>
+            <input {...regCredit('saleDate')} type="date" className="input" />
           </div>
 
           <div className="grid grid-cols-2 gap-4">
@@ -911,7 +903,7 @@ const CreditsPage = () => {
             <form onSubmit={hPay(onPayment)} className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="label">To'lov summasi ({selectedCredit.currency || 'UZS'}) *</label>
+                  <label className="label">To'lov summasi (USD) *</label>
                   <input {...regPay('amount', { valueAsNumber: true })} type="number" className="input" />
                   {ePay.amount && <p className="text-red-500 text-xs mt-1">{ePay.amount.message}</p>}
                 </div>

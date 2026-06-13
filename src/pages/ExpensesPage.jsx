@@ -116,7 +116,7 @@ const ExpensesPage = () => {
 
       setModalOpen(false);
       setEditingId(null);
-      reset({ amountCurrency: 'UZS', date: getTashkentDateString() });
+      reset({ amountCurrency: 'USD', date: getTashkentDateString() });
       fetchExpenses();
     } catch (error) {
       console.error(error);
@@ -132,7 +132,7 @@ const ExpensesPage = () => {
     
     reset({
       category: exp.category,
-      amountCurrency: exp.amountCurrency || 'UZS',
+      amountCurrency: 'USD',
       amount: exp.amount,
       date: dateStr,
       description: exp.description || '',
@@ -182,7 +182,7 @@ const ExpensesPage = () => {
           <p className="text-sm text-dark-400">{expenses.length} ta xarajat</p>
         </div>
         {hasPermission('add_expenses') && (
-          <button onClick={() => { setEditingId(null); reset({ amountCurrency: currency || 'UZS', date: getTashkentDateString() }); setModalOpen(true); }} className="btn-primary">
+          <button onClick={() => { setEditingId(null); reset({ amountCurrency: 'USD', date: getTashkentDateString() }); setModalOpen(true); }} className="btn-primary">
             <Plus className="w-4 h-4" /> Xarajat qo'shish
           </button>
         )}
@@ -287,19 +287,14 @@ const ExpensesPage = () => {
             {errors.category && <p className="text-red-500 text-xs mt-1">{errors.category.message}</p>}
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="label">Valyuta</label>
-              <select {...register('amountCurrency')} className="input">
-                <option value="UZS">UZS</option>
-                <option value="USD">USD</option>
-              </select>
+          <input type="hidden" {...register('amountCurrency')} value="USD" />
+          <div>
+            <label className="label">Miqdor (USD) *</label>
+            <div className="relative">
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-green-600 font-bold">$</span>
+              <input {...register('amount', { valueAsNumber: true })} type="number" className="input pl-7" step="0.01" placeholder="0.00" />
             </div>
-            <div>
-              <label className="label">Miqdor *</label>
-              <input {...register('amount', { valueAsNumber: true })} type="number" className="input" />
-              {errors.amount && <p className="text-red-500 text-xs mt-1">{errors.amount.message}</p>}
-            </div>
+            {errors.amount && <p className="text-red-500 text-xs mt-1">{errors.amount.message}</p>}
           </div>
 
           <div>

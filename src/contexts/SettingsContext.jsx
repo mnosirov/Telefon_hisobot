@@ -99,7 +99,7 @@ export const SettingsProvider = ({ children }) => {
       'Qora', 'Oq', 'Kulrang', 'Kumush', 'Oltin', 'Ko\'k', 'Qizil',
       'Yashil', 'Sariq', 'To\'q sariq', 'Binafsha', 'Pushti', 'Jigarrang',
     ],
-    currency: shopData?.currency || globalSettings?.currency || 'USD',
+    currency: 'USD',
     exchangeRate: shopData?.exchangeRate || globalSettings?.exchangeRate || 12700,
     appSettings: {
       name: globalSettings?.appName || 'PhoneReport',

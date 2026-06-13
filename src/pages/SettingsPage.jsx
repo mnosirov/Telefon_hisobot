@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
-import { 
-  collection, getDocs, addDoc, updateDoc, doc, 
-  serverTimestamp, query, where, writeBatch 
+import {
+  collection, getDocs, addDoc, updateDoc, doc,
+  serverTimestamp, query, where, writeBatch, arrayUnion
 } from 'firebase/firestore';
 import { db } from '../firebase/config';
 import { useAuth } from '../contexts/AuthContext';
@@ -41,8 +41,8 @@ const SettingsPage = () => {
   const [testResult, setTestResult] = useState(null); // 'success' | 'error' | null
   const [savingSms, setSavingSms] = useState(false);
 
-  // Capital/starting cash states
-  const [initialCashUSD, setInitialCashUSD] = useState(0);
+  // Investment/sarmoya states
+  const [newInvestmentAmount, setNewInvestmentAmount] = useState('');
   const [savingCash, setSavingCash] = useState(false);
 
   useEffect(() => {
@@ -68,25 +68,43 @@ const SettingsPage = () => {
       setSmsOnNewCredit(shopData.smsOnNewCredit ?? true);
       setSmsOnPayment(shopData.smsOnPayment ?? true);
       setSmsOnReminder(shopData.smsOnReminder ?? true);
-      setInitialCashUSD(shopData.initialCashUSD ?? 0);
+      // investments array loaded via shopData directly
     }
   }, [shopData]);
 
-  const handleSaveInitialCash = async () => {
+  const handleAddInvestment = async () => {
+    const amount = Number(newInvestmentAmount);
+    if (!amount || amount <= 0) {
+      toast.error("To'g'ri miqdor kiriting");
+      return;
+    }
     try {
       setSavingCash(true);
-      await updateShopSettings({
-        initialCashUSD: Number(initialCashUSD) || 0,
-      });
-      await logAction(currentUser.uid, 'initial_cash_updated', {
-        initialCashUSD,
-      });
-      toast.success('Sarmoya sozlamalari muvaffaqiyatli saqlandi');
+      const entry = {
+        amountUSD: amount,
+        date: new Date().toISOString().split('T')[0],
+        addedAt: new Date().toISOString(),
+      };
+      await updateShopSettings({ investments: arrayUnion(entry) });
+      await logAction(currentUser.uid, 'investment_added', { amountUSD: amount });
+      toast.success(`$${amount} sarmoya muvaffaqiyatli qo'shildi`);
+      setNewInvestmentAmount('');
     } catch (err) {
       console.error(err);
       toast.error('Saqlashda xato yuz berdi');
     } finally {
       setSavingCash(false);
+    }
+  };
+
+  const handleDeleteInvestment = async (idx) => {
+    const newArr = (shopData?.investments || []).filter((_, i) => i !== idx);
+    try {
+      await updateShopSettings({ investments: newArr });
+      await logAction(currentUser.uid, 'investment_deleted', { idx });
+      toast.success("Sarmoya yozuvi o'chirildi");
+    } catch (err) {
+      toast.error("O'chirishda xato");
     }
   };
 
@@ -301,35 +319,81 @@ const SettingsPage = () => {
         </div>
       </div>
 
-      {/* Kassa boshlang'ich sarmoyasi */}
+      {/* Kassa sarmoyasi */}
       <div className="card p-5">
-        <h2 className="font-semibold text-dark-900 dark:text-white flex items-center gap-2 mb-4">
+        <h2 className="font-semibold text-dark-900 dark:text-white flex items-center gap-2 mb-1">
           <Settings className="w-5 h-5 text-emerald-500" />
-          Kassa boshlang'ich sarmoyasi (Pul qo'shish)
+          Kassa sarmoyasi
         </h2>
         <p className="text-xs text-dark-400 mb-4">
-          Telefon xarid qilish va boshqa xarajatlar uchun kassaga kiritilgan sarmoya miqdori. Bu summa kassadagi umumiy balansga qo'shiladi.
+          Kassaga kiritilgan har bir sarmoya alohida saqlanadi va yig'indisi kassa balansiga qo'shiladi.
         </p>
-        <div className="max-w-xs">
-          <label className="label">Boshlang'ich pul (USD)</label>
-          <div className="relative">
-            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-green-600 font-bold">$</span>
-            <input
-              type="number"
-              value={initialCashUSD}
-              onChange={(e) => setInitialCashUSD(e.target.value === '' ? '' : Number(e.target.value))}
-              className="input w-full pl-7"
-              placeholder="0.00"
-              step="0.01"
-              min={0}
-            />
+
+        {/* Yangi sarmoya qo'shish */}
+        <div className="flex gap-3 items-end mb-5">
+          <div className="flex-1 max-w-xs">
+            <label className="label">Yangi sarmoya miqdori (USD)</label>
+            <div className="relative">
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-green-600 font-bold">$</span>
+              <input
+                type="number"
+                value={newInvestmentAmount}
+                onChange={(e) => setNewInvestmentAmount(e.target.value)}
+                className="input w-full pl-7"
+                placeholder="0.00"
+                step="0.01"
+                min={0}
+              />
+            </div>
           </div>
-        </div>
-        <div className="flex justify-end mt-4">
-          <button onClick={handleSaveInitialCash} disabled={savingCash} className="btn-primary">
-            {savingCash ? 'Saqlanmoqda...' : 'Sarmoyani saqlash'}
+          <button onClick={handleAddInvestment} disabled={savingCash} className="btn-primary">
+            {savingCash ? 'Qo\'shilmoqda...' : '+ Qo\'shish'}
           </button>
         </div>
+
+        {/* Sarmoya tarixi */}
+        {(() => {
+          const investments = shopData?.investments || [];
+          const legacyUSD = shopData?.initialCashUSD || 0;
+          const totalUSD = investments.reduce((s, inv) => s + (inv.amountUSD || 0), 0) + legacyUSD;
+          return (
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <p className="text-sm font-medium text-dark-700 dark:text-dark-200">Sarmoya tarixi</p>
+                <p className="text-sm font-bold text-emerald-600">${totalUSD.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} jami</p>
+              </div>
+              {investments.length === 0 && legacyUSD === 0 ? (
+                <p className="text-xs text-dark-400 text-center py-4">Hali sarmoya kiritilmagan</p>
+              ) : (
+                <div className="space-y-2">
+                  {legacyUSD > 0 && (
+                    <div className="flex items-center justify-between px-3 py-2 bg-dark-50 dark:bg-dark-700/50 rounded-lg">
+                      <div>
+                        <p className="text-sm font-semibold text-dark-900 dark:text-white">${legacyUSD.toLocaleString()}</p>
+                        <p className="text-xs text-dark-400">Avvalgi boshlang'ich kapital</p>
+                      </div>
+                    </div>
+                  )}
+                  {investments.map((inv, idx) => (
+                    <div key={idx} className="flex items-center justify-between px-3 py-2 bg-dark-50 dark:bg-dark-700/50 rounded-lg">
+                      <div>
+                        <p className="text-sm font-semibold text-dark-900 dark:text-white">${(inv.amountUSD || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+                        <p className="text-xs text-dark-400">{inv.date || '—'}</p>
+                      </div>
+                      <button
+                        onClick={() => handleDeleteInvestment(idx)}
+                        className="p-1.5 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
+                        title="O'chirish"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          );
+        })()}
       </div>
 
       {/* Low stock threshold */}

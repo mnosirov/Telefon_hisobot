@@ -300,8 +300,10 @@ const Dashboard = () => {
 
         // ── Umumiy kassa balansini hisoblash (barcha vaqt) ──
         // Formula: Boshlang'ich Sarmoya + Sotuvlar kirimi + Kredit to'lovlari − Xarajatlar − Telefon xaridlari
-        let totalCashUZS = shopData?.initialCashUZS || 0;
-        let totalCashUSD = shopData?.initialCashUSD || 0;
+        const investmentsSum = (shopData?.investments || []).reduce((s, inv) => s + (inv.amountUSD || 0), 0);
+        const legacyInitialUSD = shopData?.initialCashUSD || 0; // eski ma'lumotlar bilan mos kelish uchun
+        let totalCashUSD = investmentsSum + legacyInitialUSD;
+        let totalCashUZS = totalCashUSD * (exchangeRate || 12700);
 
         // 1. Sotuvlardan kirim (barcha vaqt)
         allSalesSnap.forEach((d) => {

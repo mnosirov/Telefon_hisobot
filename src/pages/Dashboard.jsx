@@ -164,17 +164,17 @@ const Dashboard = () => {
           if (isReturned) {
             const refundUZS = data.refundAmountUZS;
             const refundUSD = data.refundAmountUSD;
-            
-            if (refundUZS !== undefined) {
-              const rAmtUZS = Number(refundUZS) || 0;
-              const rAmtUSD = refundUSD !== undefined ? Number(refundUSD) : (rAmtUZS / r);
-              
+
+            if (refundUZS !== undefined || refundUSD !== undefined) {
+              const rAmtUSD = refundUSD !== undefined ? Number(refundUSD) : (Number(refundUZS) || 0) / r;
+              const rAmtUZS = refundUZS !== undefined ? Number(refundUZS) : rAmtUSD * r;
+
               const netGainUZS = uzs - rAmtUZS;
               const netGainUSD = usd - rAmtUSD;
 
               mRev += netGainUZS;
               mRevUSD += netGainUSD;
-              
+
               mCashIn += netGainUZS;
               mCashInUSD += netGainUSD;
             }
@@ -195,8 +195,10 @@ const Dashboard = () => {
               mCashIn += uzs;
               mCashInUSD += usd;
             } else if (data.initialPayment > 0) {
-              mCashIn += data.initialPayment;
-              mCashInUSD += data.initialPayment / r;
+              const ipCur = data.salePriceCurrency || 'UZS';
+              const ipUSD = ipCur === 'USD' ? data.initialPayment : data.initialPayment / r;
+              mCashIn += ipUSD * r;
+              mCashInUSD += ipUSD;
             }
 
             const b = data.phoneName?.split(' ')[0];
@@ -236,19 +238,16 @@ const Dashboard = () => {
         // Add credit payments made this month to cash income
         creditsSnap.forEach((d) => {
           const data = d.data();
+          const creditCur = data.currency || 'UZS';
           if (data.paymentHistory) {
             data.paymentHistory.forEach(pay => {
               const pDate = new Date(pay.date);
               if (pDate >= startOfMonth && pDate <= endOfMonth) {
-                // Important: Don't double count initialPayment if it's already in sales
-                // Actually, initialPayment is added to paymentHistory in CreditsPage
-                // But we already added initialPayment to mCashIn from Sales records above (line 173)
-                // To avoid double counting, we skip 'Boshlang\'ich to\'lov' from credits.paymentHistory
-                // if it's already accounted for.
                 if (pay.notes !== "Boshlang'ich to'lov") {
                   const amt = pay.amount || 0;
-                  mCashIn += amt;
-                  mCashInUSD += amt / (exchangeRate || 12700);
+                  const amtUSD = creditCur === 'USD' ? amt : amt / (exchangeRate || 12700);
+                  mCashIn += amtUSD * (exchangeRate || 12700);
+                  mCashInUSD += amtUSD;
                 }
               }
             });
@@ -316,9 +315,9 @@ const Dashboard = () => {
           if (isReturned) {
             const refundUZS = data.refundAmountUZS;
             const refundUSD = data.refundAmountUSD;
-            if (refundUZS !== undefined) {
-              const rAmtUZS = Number(refundUZS) || 0;
-              const rAmtUSD = refundUSD !== undefined ? Number(refundUSD) : (rAmtUZS / r);
+            if (refundUZS !== undefined || refundUSD !== undefined) {
+              const rAmtUSD = refundUSD !== undefined ? Number(refundUSD) : (Number(refundUZS) || 0) / r;
+              const rAmtUZS = refundUZS !== undefined ? Number(refundUZS) : rAmtUSD * r;
               totalCashUZS += (uzs - rAmtUZS);
               totalCashUSD += (usd - rAmtUSD);
             }
@@ -330,20 +329,24 @@ const Dashboard = () => {
             totalCashUZS += uzs;
             totalCashUSD += usd;
           } else if (data.initialPayment > 0) {
-            totalCashUZS += data.initialPayment;
-            totalCashUSD += data.initialPayment / r;
+            const ipCur = data.salePriceCurrency || 'UZS';
+            const ipUSD = ipCur === 'USD' ? data.initialPayment : data.initialPayment / r;
+            totalCashUZS += ipUSD * r;
+            totalCashUSD += ipUSD;
           }
         });
 
         // 2. Kredit to'lovlarini qo'shish (barcha vaqt)
         creditsSnap.forEach((d) => {
           const data = d.data();
+          const creditCur = data.currency || 'UZS';
           if (data.paymentHistory) {
             data.paymentHistory.forEach(pay => {
               if (pay.notes !== "Boshlang'ich to'lov") {
                 const amt = pay.amount || 0;
-                totalCashUZS += amt;
-                totalCashUSD += amt / (exchangeRate || 12700);
+                const amtUSD = creditCur === 'USD' ? amt : amt / (exchangeRate || 12700);
+                totalCashUZS += amtUSD * (exchangeRate || 12700);
+                totalCashUSD += amtUSD;
               }
             });
           }

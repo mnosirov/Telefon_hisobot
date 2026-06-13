@@ -42,7 +42,6 @@ const SettingsPage = () => {
   const [savingSms, setSavingSms] = useState(false);
 
   // Capital/starting cash states
-  const [initialCashUZS, setInitialCashUZS] = useState(0);
   const [initialCashUSD, setInitialCashUSD] = useState(0);
   const [savingCash, setSavingCash] = useState(false);
 
@@ -69,7 +68,6 @@ const SettingsPage = () => {
       setSmsOnNewCredit(shopData.smsOnNewCredit ?? true);
       setSmsOnPayment(shopData.smsOnPayment ?? true);
       setSmsOnReminder(shopData.smsOnReminder ?? true);
-      setInitialCashUZS(shopData.initialCashUZS ?? 0);
       setInitialCashUSD(shopData.initialCashUSD ?? 0);
     }
   }, [shopData]);
@@ -78,11 +76,9 @@ const SettingsPage = () => {
     try {
       setSavingCash(true);
       await updateShopSettings({
-        initialCashUZS: Number(initialCashUZS) || 0,
         initialCashUSD: Number(initialCashUSD) || 0,
       });
       await logAction(currentUser.uid, 'initial_cash_updated', {
-        initialCashUZS,
         initialCashUSD,
       });
       toast.success('Sarmoya sozlamalari muvaffaqiyatli saqlandi');
@@ -314,26 +310,17 @@ const SettingsPage = () => {
         <p className="text-xs text-dark-400 mb-4">
           Telefon xarid qilish va boshqa xarajatlar uchun kassaga kiritilgan sarmoya miqdori. Bu summa kassadagi umumiy balansga qo'shiladi.
         </p>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div>
-            <label className="label">Boshlang'ich pul (UZS)</label>
-            <input
-              type="number"
-              value={initialCashUZS}
-              onChange={(e) => setInitialCashUZS(e.target.value === '' ? '' : Number(e.target.value))}
-              className="input w-full"
-              placeholder="0"
-              min={0}
-            />
-          </div>
-          <div>
-            <label className="label">Boshlang'ich pul (USD)</label>
+        <div className="max-w-xs">
+          <label className="label">Boshlang'ich pul (USD)</label>
+          <div className="relative">
+            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-green-600 font-bold">$</span>
             <input
               type="number"
               value={initialCashUSD}
               onChange={(e) => setInitialCashUSD(e.target.value === '' ? '' : Number(e.target.value))}
-              className="input w-full"
-              placeholder="0"
+              className="input w-full pl-7"
+              placeholder="0.00"
+              step="0.01"
               min={0}
             />
           </div>

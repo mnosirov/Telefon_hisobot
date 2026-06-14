@@ -44,7 +44,7 @@ const RETURN_REASONS = [
 ];
 
 const SalesPage = () => {
-  const { hasPermission, logAction, currentUser, userProfile, isAdmin } = useAuth();
+  const { hasPermission, logAction, currentUser, userProfile, isAdmin, hasRole } = useAuth();
   const { currency, exchangeRate } = useSettings();
   const shopId = userProfile?.shopId;
   const [sales, setSales] = useState([]);
@@ -781,7 +781,7 @@ const SalesPage = () => {
                                 </button>
                               </>
                             )}
-                            {isAdmin && (
+                            {hasRole('manager') && (
                               <button
                                 onClick={() => setDeleteModal({ open: true, sale })}
                                 className="p-1.5 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 text-red-400 hover:text-red-600 transition-colors"

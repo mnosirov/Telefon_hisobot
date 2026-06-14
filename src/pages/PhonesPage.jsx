@@ -490,6 +490,7 @@ const PhonesPage = () => {
                 { key: 'chargeCount', label: 'Zaryadlash soni' },
                 { key: 'hasBox', label: 'Karobka', format: (v) => v ? 'Bor' : 'Yo\'q' },
                 { key: 'status', label: 'Status' },
+                { key: 'uzimei', label: 'UZIMEI holati', format: (v) => v || "O'tmagan" },
                 { key: 'purchasePriceUSD', label: 'Narx (USD)', format: (v) => v ? `$${v}` : '' },
                 { key: 'purchasePriceUZS', label: "Narx (so'm)", format: (v) => v ? v.toLocaleString() : '' },
                 { key: 'supplierName', label: 'Yetkazib beruvchi' },

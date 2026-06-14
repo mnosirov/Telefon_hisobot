@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import {
-  collection, query, orderBy, getDocs, addDoc, updateDoc,
-  serverTimestamp, where, doc, getDoc,
+  collection, query, orderBy, getDocs, addDoc, updateDoc, deleteDoc,
+  serverTimestamp, where, doc, getDoc, deleteField,
 } from 'firebase/firestore';
 import { db } from '../firebase/config';
 import { useAuth } from '../contexts/AuthContext';
@@ -13,7 +13,7 @@ import toast from 'react-hot-toast';
 import Modal from '../components/ui/Modal';
 import Pagination from '../components/ui/Pagination';
 import LoadingSpinner from '../components/ui/LoadingSpinner';
-import { Plus, Search, ShoppingCart, TrendingUp, RotateCcw, AlertTriangle, Eye, Info, DollarSign, History, Edit2 } from 'lucide-react';
+import { Plus, Search, ShoppingCart, TrendingUp, RotateCcw, AlertTriangle, Eye, Info, DollarSign, History, Edit2, Trash2 } from 'lucide-react';
 import { formatUZS, formatUSD, formatCurrency, formatDate, formatDateTime, formatTime, getTashkentDateString } from '../utils/helpers';
 import { PAYMENT_METHODS } from '../utils/constants';
 
@@ -85,6 +85,8 @@ const SalesPage = () => {
   });
   const [buyingBack, setBuyingBack] = useState(false);
   const [editModal, setEditModal] = useState({ open: false, sale: null });
+  const [deleteModal, setDeleteModal] = useState({ open: false, sale: null });
+  const [deleting, setDeleting] = useState(false);
 
   const { register, handleSubmit, reset, watch, formState: { errors }, setValue } = useForm({
     resolver: zodResolver(schema),
@@ -526,6 +528,33 @@ const SalesPage = () => {
     }
   };
 
+  const handleDeleteSale = async () => {
+    const { sale } = deleteModal;
+    if (!sale) return;
+    try {
+      setDeleting(true);
+      await deleteDoc(doc(db, 'sales', sale.id));
+      if (sale.phoneId) {
+        await updateDoc(doc(db, 'phones', sale.phoneId), {
+          status: 'Sotuvda',
+          isArchived: false,
+          soldAt: deleteField(),
+          buyerName: deleteField(),
+          warranty: deleteField(),
+        });
+      }
+      await logAction(currentUser.uid, 'sale_deleted', { saleId: sale.id, phoneName: sale.phoneName });
+      toast.success("Sotuv o'chirildi, telefon qaytarildi");
+      setDeleteModal({ open: false, sale: null });
+      fetchData();
+    } catch (err) {
+      console.error(err);
+      toast.error('Xato yuz berdi');
+    } finally {
+      setDeleting(false);
+    }
+  };
+
   const filtered = sales.filter((s) => {
     const q = search.toLowerCase();
     return !q || [s.buyerName, s.phoneName, s.phoneImei].some((f) => f?.toLowerCase().includes(q));
@@ -751,6 +780,15 @@ const SalesPage = () => {
                                   <DollarSign className="w-4 h-4" />
                                 </button>
                               </>
+                            )}
+                            {isAdmin && (
+                              <button
+                                onClick={() => setDeleteModal({ open: true, sale })}
+                                className="p-1.5 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 text-red-400 hover:text-red-600 transition-colors"
+                                title="Sotuvni o'chirish (xato kiritilgan)"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
                             )}
                           </div>
                         </td>
@@ -1292,6 +1330,40 @@ const SalesPage = () => {
             </button>
           </div>
         </form>
+      </Modal>
+
+      {/* Sotuvni o'chirish tasdiqlash modali */}
+      <Modal isOpen={deleteModal.open} onClose={() => setDeleteModal({ open: false, sale: null })} title="Sotuvni o'chirish" size="sm">
+        {deleteModal.sale && (
+          <div className="space-y-4">
+            <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl p-4 flex items-start gap-3">
+              <AlertTriangle className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" />
+              <div>
+                <p className="font-semibold text-red-700 dark:text-red-400">Diqqat! Bu amalni qaytarib bo'lmaydi</p>
+                <p className="text-sm text-red-600 dark:text-red-500 mt-1">
+                  Sotuv yozuvi butunlay o'chiriladi va telefon <strong>"Sotuvda"</strong> holatiga qaytariladi.
+                </p>
+              </div>
+            </div>
+            <div className="bg-dark-50 dark:bg-dark-700/50 rounded-xl p-3 space-y-1">
+              <p className="text-sm font-medium text-dark-900 dark:text-white">{deleteModal.sale.phoneName}</p>
+              <p className="text-xs font-mono text-dark-400">{deleteModal.sale.phoneImei}</p>
+              <p className="text-sm text-dark-500">Xaridor: <span className="font-medium">{deleteModal.sale.buyerName}</span></p>
+              <p className="text-sm text-dark-500">Narx: <span className="font-medium text-green-600">${deleteModal.sale.salePriceUSD?.toLocaleString()}</span></p>
+            </div>
+            <div className="flex justify-end gap-3 pt-1">
+              <button onClick={() => setDeleteModal({ open: false, sale: null })} className="btn-secondary">Bekor qilish</button>
+              <button
+                onClick={handleDeleteSale}
+                disabled={deleting}
+                className="flex items-center gap-2 px-4 py-2 bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white rounded-lg text-sm font-medium transition-colors"
+              >
+                <Trash2 className="w-4 h-4" />
+                {deleting ? "O'chirilmoqda..." : "Ha, o'chirish"}
+              </button>
+            </div>
+          </div>
+        )}
       </Modal>
     </div>
   );

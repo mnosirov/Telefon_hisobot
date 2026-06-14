@@ -113,11 +113,26 @@ const columnMappings = {
   batteryHealth: ['battery', 'batareka', 'batareya', 'akb', 'health', 'емкость'],
   chargeCount: ['charge', 'charge count', 'zaryad', 'zaryadlar soni', 'cycles', 'циклы'],
   hasBox: ['box', 'karobka', 'karobkasi', 'box/box', 'коробка'],
-  purchasePrice: ['price', 'narx', 'narxi', 'cost', 'purchase price', 'цена'],
+  // USD ustunlari — USTUVOR (purchasePrice dan oldin joylashgan)
+  purchasePriceUSD: ['price usd', 'narx usd', 'narxi usd', 'usd narx', 'dollar narx', 'dollar price', 'xarid narxi usd', 'usd price'],
+  // UZS ustunlari — E'TIBORGA OLINMAYDI (tizim faqat USD ishlaydi)
+  purchasePriceUZS: ["price uzs", "narx uzs", "narxi uzs", "uzs narx", "so'm narx", "som narx", "sum narx", "narx (so'm)", "narx (uzs)"],
+  // Umumiy narx ustuni — UZS belgisi bo'lmasa USD deb qabul qilinadi
+  purchasePrice: ['price', 'narx', 'narxi', 'cost', 'purchase price', 'цена', 'xarid narxi'],
   supplierName: ['supplier', 'yetkazib beruvchi', 'postavshik', 'поставщик'],
   supplierPhone: ['phone', 'tel', 'telefon', 'nomer', 'supplier phone'],
   purchaseDate: ['date', 'sana', 'xarid sanasi', 'дата'],
   uzimei: ['uzimei', 'uzimei holati', 'регистрация']
+};
+
+// Katak qiymatidan UZS belgilari bo'lsa null, aks holda raqam qaytaradi
+const parsePriceAsUSD = (val) => {
+  if (val === undefined || val === null || val === '') return null;
+  const str = String(val).trim();
+  // UZS belgilari bo'lsa — e'tiborsiz qoldirish
+  if (/so['']?m|uzs|\bsum\b|сум/i.test(str)) return null;
+  const num = parseFloat(str.replace(/[^\d.]/g, ''));
+  return isNaN(num) ? null : num;
 };
 
 const getMappedKey = (header) => {
@@ -182,8 +197,16 @@ export const parseExcelFile = (file) => {
           
           if (!brand && !model) continue; // Brand va Model bo'lmasa qatorni tashlab ketamiz
 
-          // Narxni hisoblash (Dollar yoki So'mda bo'lishi mumkin, agar so'mda bo'lsa keyinroq kurs bo'yicha hisoblaymiz)
-          let price = parseFloat(String(rawPhone.purchasePrice || '').replace(/[^\d.]/g, '')) || 0;
+          // Narxni hisoblash — FAQAT USD qabul qilinadi
+          // Ustuvorlik: purchasePriceUSD ustuni > purchasePrice (UZS belgisi yo'q) > 0
+          let price = 0;
+          if (rawPhone.purchasePriceUSD !== undefined) {
+            price = parseFloat(String(rawPhone.purchasePriceUSD || '').replace(/[^\d.]/g, '')) || 0;
+          } else if (rawPhone.purchasePrice !== undefined) {
+            const parsed = parsePriceAsUSD(rawPhone.purchasePrice);
+            price = parsed !== null ? parsed : 0;
+          }
+          // purchasePriceUZS ustuni bo'lsa — e'tiborga olinmaydi
 
           const phone = {
             brand: brand || 'Samsung', // Default brand

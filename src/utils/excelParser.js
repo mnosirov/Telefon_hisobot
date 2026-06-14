@@ -125,6 +125,28 @@ const columnMappings = {
   uzimei: ['uzimei', 'uzimei holati', 'регистрация']
 };
 
+// Excel sana serial raqamini yoki Date obyektini "YYYY-MM-DD" formatiga o'giradi
+const parseExcelDate = (val) => {
+  if (!val) return null;
+  if (val instanceof Date) {
+    const y = val.getFullYear();
+    const m = String(val.getMonth() + 1).padStart(2, '0');
+    const d = String(val.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+  }
+  if (typeof val === 'number') {
+    // Excel serial: 1 = 1900-01-01, Unix epoch farqi 25569 kun
+    const ms = Math.round((val - 25569) * 86400 * 1000);
+    const date = new Date(ms);
+    const y = date.getUTCFullYear();
+    const m = String(date.getUTCMonth() + 1).padStart(2, '0');
+    const d = String(date.getUTCDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+  }
+  const str = String(val).trim();
+  return str || null;
+};
+
 // Katak qiymatidan UZS belgilari bo'lsa null, aks holda raqam qaytaradi
 const parsePriceAsUSD = (val) => {
   if (val === undefined || val === null || val === '') return null;
@@ -151,7 +173,7 @@ export const parseExcelFile = (file) => {
     reader.onload = (e) => {
       try {
         const data = new Uint8Array(e.target.result);
-        const workbook = XLSX.read(data, { type: 'array' });
+        const workbook = XLSX.read(data, { type: 'array', cellDates: true });
         const firstSheetName = workbook.SheetNames[0];
         const worksheet = workbook.Sheets[firstSheetName];
         
@@ -223,7 +245,7 @@ export const parseExcelFile = (file) => {
             purchasePrice: price, // Formada ko'rsatish uchun
             supplierName: String(rawPhone.supplierName || '').trim(),
             supplierPhone: String(rawPhone.supplierPhone || '').trim(),
-            purchaseDate: rawPhone.purchaseDate ? String(rawPhone.purchaseDate).trim() : getTashkentDateString(),
+            purchaseDate: parseExcelDate(rawPhone.purchaseDate) || getTashkentDateString(),
             uzimei: findUzimei(rawPhone.uzimei) || 'O\'tmagan',
             status: 'Sotuvda',
             isArchived: false,

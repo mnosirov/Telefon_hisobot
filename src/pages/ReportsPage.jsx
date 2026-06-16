@@ -225,7 +225,7 @@ const ReportsPage = () => {
       });
     } else if (activeTab === 'debts') {
       data.debts.forEach((d) => {
-        pdf.text(`${d.buyerName} | ${d.phoneName} | Jami: ${formatUZS(d.totalAmountUZS)} | Qolgan: ${formatUZS(d.remainingDebt)} | Status: ${d.status}`, 14, y);
+        pdf.text(`${d.buyerName} | ${d.phoneName} | Jami: ${formatUZS(d.totalPrice)} | Qolgan: ${formatUZS(d.remainingDebt)} | Status: ${d.status}`, 14, y);
         y += 8;
         if (y > 280) { pdf.addPage(); y = 15; }
       });

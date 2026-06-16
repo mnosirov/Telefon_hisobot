@@ -61,8 +61,10 @@ const CreditsPage = () => {
   const [returnForm, setReturnForm] = useState({
     reason: '',
     refundAmount: 0,
+    refundCurrency: 'USD',
     newPhoneStatus: 'Sotuvda',
   });
+  const [initPaymentPct, setInitPaymentPct] = useState(0);
   const [sendingReminders, setSendingReminders] = useState(false);
   const [upcomingReminders, setUpcomingReminders] = useState([]);
 
@@ -131,6 +133,13 @@ const CreditsPage = () => {
     const finalPrice = (watchInitialPayment || 0) + remainder + totalInterest;
     setValue('totalPrice', finalPrice);
   }, [watchCashPrice, watchInitialPayment, watchMarkupPercent, setValue]);
+
+  // Foiz kalkulyatori: cashPrice o'zgarganda initialPayment ni qayta hisoblash
+  useEffect(() => {
+    if (initPaymentPct > 0 && watchCashPrice > 0) {
+      setValue('initialPayment', (watchCashPrice || 0) * (initPaymentPct / 100));
+    }
+  }, [watchCashPrice, initPaymentPct, setValue]);
 
   const monthlyPaymentAmount = Math.max(0, ((watchTotalPrice || 0) - (watchInitialPayment || 0)) / (watchMonths || 1));
 
@@ -412,6 +421,10 @@ const CreditsPage = () => {
   };
 
   const onPayment = async (data) => {
+    if (data.amount > selectedCredit.remainingDebt) {
+      toast.error(`To'lov summasi qolgan qarzdan (${formatCurrency(selectedCredit.remainingDebt, selectedCredit.currency || 'USD')}) oshib ketdi`);
+      return;
+    }
     try {
       setSubmitting(true);
       const newRemaining = selectedCredit.remainingDebt - data.amount;
@@ -475,11 +488,20 @@ const CreditsPage = () => {
       setSubmitting(true);
       
       // 1. Create return record
+      const refundUSD = returnForm.refundCurrency === 'USD'
+        ? returnForm.refundAmount
+        : returnForm.refundAmount / (exchangeRate || 12700);
+      const refundUZS = returnForm.refundCurrency === 'UZS'
+        ? returnForm.refundAmount
+        : returnForm.refundAmount * (exchangeRate || 12700);
       await addDoc(collection(db, 'returns'), {
         reason: returnForm.reason,
-        refundAmount: returnForm.refundAmount,
+        refundAmount: refundUZS,
+        refundAmountUSD: refundUSD,
+        refundAmountUZS: refundUZS,
+        refundCurrency: returnForm.refundCurrency || 'USD',
         newPhoneStatus: returnForm.newPhoneStatus,
-        saleId: selectedCredit.id, // We use creditId as saleId here
+        saleId: selectedCredit.id,
         phoneId: selectedCredit.phoneId,
         phoneName: selectedCredit.phoneName,
         phoneImei: selectedCredit.phoneImei,
@@ -642,9 +664,9 @@ const CreditsPage = () => {
       <div className="card p-4 flex flex-col sm:flex-row gap-3">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-dark-400" />
-          <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Xaridor yoki telefon..." className="input pl-9" />
+          <input value={search} onChange={(e) => { setSearch(e.target.value); setCurrentPage(1); }} placeholder="Xaridor yoki telefon..." className="input pl-9" />
         </div>
-        <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)} className="input w-full sm:w-48">
+        <select value={filterStatus} onChange={(e) => { setFilterStatus(e.target.value); setCurrentPage(1); }} className="input w-full sm:w-48">
           <option value="">Barcha status</option>
           {DEBT_STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
         </select>
@@ -733,7 +755,7 @@ const CreditsPage = () => {
       </div>
 
       {/* Add Credit Modal */}
-      <Modal isOpen={addModalOpen} onClose={() => setAddModalOpen(false)} title="Qarzga sotuv" size="lg">
+      <Modal isOpen={addModalOpen} onClose={() => { setAddModalOpen(false); setInitPaymentPct(0); }} title="Qarzga sotuv" size="lg">
         <form onSubmit={hCredit(onAddCredit)} className="space-y-4">
           <div>
             <label className="label">Telefon *</label>
@@ -781,12 +803,14 @@ const CreditsPage = () => {
             </div>
             <div>
               <label className="label">Boshlang'ich to'lov (%)</label>
-              <input 
-                type="number" 
-                className="input" 
+              <input
+                type="number"
+                className="input"
                 placeholder="Masalan: 40"
+                value={initPaymentPct || ''}
                 onChange={(e) => {
                   const pct = Number(e.target.value) || 0;
+                  setInitPaymentPct(pct);
                   setValue('initialPayment', (watchCashPrice || 0) * (pct / 100));
                 }}
               />
@@ -969,12 +993,22 @@ const CreditsPage = () => {
 
               <div>
                 <label className="label">Qaytarilgan summa (agar bo'lsa)</label>
-                <input 
-                  type="number" 
-                  className="input" 
-                  value={returnForm.refundAmount}
-                  onChange={(e) => setReturnForm({...returnForm, refundAmount: Number(e.target.value)})}
-                />
+                <div className="flex gap-2">
+                  <input
+                    type="number"
+                    className="input flex-1"
+                    value={returnForm.refundAmount}
+                    onChange={(e) => setReturnForm({...returnForm, refundAmount: Number(e.target.value)})}
+                  />
+                  <select
+                    className="input w-24"
+                    value={returnForm.refundCurrency}
+                    onChange={(e) => setReturnForm({...returnForm, refundCurrency: e.target.value})}
+                  >
+                    <option value="USD">USD</option>
+                    <option value="UZS">UZS</option>
+                  </select>
+                </div>
                 <p className="text-[10px] text-dark-400 mt-1 italic">
                   * Agar mijozga pul qaytarib berilgan bo'lsa kiriting
                 </p>

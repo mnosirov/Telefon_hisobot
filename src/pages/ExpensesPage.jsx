@@ -210,7 +210,7 @@ const ExpensesPage = () => {
       <div className="card p-4 flex flex-col sm:flex-row gap-3">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-dark-400" />
-          <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Izoh bo'yicha qidirish..." className="input pl-9" />
+          <input value={search} onChange={(e) => { setSearch(e.target.value); setCurrentPage(1); }} placeholder="Izoh bo'yicha qidirish..." className="input pl-9" />
         </div>
         <select value={filterCategory} onChange={(e) => { setFilterCategory(e.target.value); setCurrentPage(1); }} className="input w-full sm:w-48">
           <option value="">Barcha kategoriya</option>

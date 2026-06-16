@@ -68,8 +68,8 @@ const ReturnsPage = () => {
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-dark-400" />
           <input 
             value={search} 
-            onChange={(e) => setSearch(e.target.value)} 
-            placeholder="Mijoz, telefon yoki IMEI orqali qidirish..." 
+            onChange={(e) => { setSearch(e.target.value); setCurrentPage(1); }}
+            placeholder="Mijoz, telefon yoki IMEI orqali qidirish..."
             className="input pl-9" 
           />
         </div>
@@ -96,18 +96,21 @@ const ReturnsPage = () => {
                   </div>
                 </div>
                 <div className="text-right">
-                  <p className="text-sm font-bold text-red-600">
-                    -{item.refundCurrency === 'USD'
-                      ? formatUSD(item.refundAmountUSD || item.refundAmount)
-                      : formatUZS(item.refundAmountUZS || item.refundAmount)
-                    }
-                  </p>
-                  <p className="text-[10px] text-dark-400">
-                    {item.refundCurrency === 'USD'
-                      ? `≈ ${formatUZS(item.refundAmountUZS || item.refundAmount)}`
-                      : `≈ ${formatUSD(item.refundAmountUSD || (item.refundAmount / 12700))}`
-                    }
-                  </p>
+                  {(() => {
+                    const refCur = item.refundCurrency || 'USD';
+                    const refUSD = item.refundAmountUSD ?? (item.refundAmount || 0);
+                    const refUZS = item.refundAmountUZS ?? ((item.refundAmount || 0) * 12700);
+                    return (
+                      <>
+                        <p className="text-sm font-bold text-red-600">
+                          -{refCur === 'USD' ? formatUSD(refUSD) : formatUZS(refUZS)}
+                        </p>
+                        <p className="text-[10px] text-dark-400">
+                          {refCur === 'USD' ? `≈ ${formatUZS(refUZS)}` : `≈ ${formatUSD(refUSD)}`}
+                        </p>
+                      </>
+                    );
+                  })()}
                   <p className="text-[10px] text-dark-300">Qaytarilgan summa</p>
                 </div>
               </div>

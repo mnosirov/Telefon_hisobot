@@ -36,7 +36,7 @@ const AdminNotificationsPage = () => {
         usersSnap.forEach((d) => usersData.push({ id: d.id, ...d.data() }));
         const notifsData = [];
         notifsSnap.forEach((d) => notifsData.push({ id: d.id, ...d.data() }));
-        notifsData.sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
+        notifsData.sort((a, b) => (b.createdAt?.toMillis?.() || 0) - (a.createdAt?.toMillis?.() || 0));
         setShops(shopsData);
         setUsers(usersData);
         setNotifications(notifsData);

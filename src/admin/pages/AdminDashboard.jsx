@@ -53,7 +53,7 @@ const AdminDashboard = () => {
           getDocs(collection(db, 'shops')),
           getDocs(collection(db, 'users')),
           getDocs(collection(db, 'phones')),
-          getDocs(query(collection(db, 'sales'), orderBy('saleDate', 'desc'), limit(500))),
+          getDocs(query(collection(db, 'sales'), orderBy('saleDate', 'desc'), limit(2000))),
           getDocs(collection(db, 'credits')),
           getDocs(query(collection(db, 'phones'), where('isDeleted', '==', true))),
         ]);
@@ -94,8 +94,8 @@ const AdminDashboard = () => {
           totalRevenue += amount;
 
           // Brand count
-          const brand = data.phoneName?.split(' ')[0];
-          if (brand) brandCount[brand] = (brandCount[brand] || 0) + 1;
+          const brand = (data.phoneName || '').split(' ')[0] || 'Boshqa';
+          brandCount[brand] = (brandCount[brand] || 0) + 1;
 
           // Per-shop revenue
           const sid = data.shopId || '__unknown__';

@@ -4,9 +4,9 @@ import {
 } from 'firebase/firestore';
 import {
   sendPasswordResetEmail, createUserWithEmailAndPassword,
-  initializeAuth, browserLocalPersistence,
+  initializeAuth, getAuth, browserLocalPersistence,
 } from 'firebase/auth';
-import { initializeApp } from 'firebase/app';
+import { initializeApp, getApps, getApp } from 'firebase/app';
 import { db, auth } from '../../firebase/config';
 import { useSuperAdmin } from '../contexts/SuperAdminContext';
 import toast from 'react-hot-toast';
@@ -34,14 +34,11 @@ const firebaseConfig = {
   appId: import.meta.env.VITE_FIREBASE_APP_ID,
 };
 
-let secondaryApp;
-try {
-  secondaryApp = initializeApp(firebaseConfig, 'secondary');
-} catch {
-  // already initialized
-  secondaryApp = initializeApp(firebaseConfig, 'secondary');
-}
-const secondaryAuth = initializeAuth(secondaryApp, { persistence: browserLocalPersistence });
+const existingSecondary = getApps().find((a) => a.name === 'secondary');
+const secondaryApp = existingSecondary ?? initializeApp(firebaseConfig, 'secondary');
+const secondaryAuth = existingSecondary
+  ? getAuth(secondaryApp)
+  : initializeAuth(secondaryApp, { persistence: browserLocalPersistence });
 
 const AdminUsersPage = () => {
   const { auditLog, currentUser } = useSuperAdmin();
@@ -202,16 +199,16 @@ const AdminUsersPage = () => {
       <div className="bg-slate-800 border border-slate-700 rounded-xl p-4 flex flex-col sm:flex-row gap-3">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
-          <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Ism yoki email..." className="w-full pl-9 pr-4 py-2.5 bg-slate-700 border border-slate-600 rounded-lg text-white text-sm placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-purple-500" />
+          <input value={search} onChange={(e) => { setSearch(e.target.value); setCurrentPage(1); }} placeholder="Ism yoki email..." className="w-full pl-9 pr-4 py-2.5 bg-slate-700 border border-slate-600 rounded-lg text-white text-sm placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-purple-500" />
         </div>
-        <select value={filterRole} onChange={(e) => setFilterRole(e.target.value)} className="px-3 py-2.5 bg-slate-700 border border-slate-600 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-purple-500">
+        <select value={filterRole} onChange={(e) => { setFilterRole(e.target.value); setCurrentPage(1); }} className="px-3 py-2.5 bg-slate-700 border border-slate-600 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-purple-500">
           <option value="">Barcha rol</option>
           <option value="superadmin">Super Admin</option>
           <option value="admin">Admin</option>
           <option value="manager">Menejer</option>
           <option value="cashier">Kassir</option>
         </select>
-        <select value={filterShop} onChange={(e) => setFilterShop(e.target.value)} className="px-3 py-2.5 bg-slate-700 border border-slate-600 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-purple-500">
+        <select value={filterShop} onChange={(e) => { setFilterShop(e.target.value); setCurrentPage(1); }} className="px-3 py-2.5 bg-slate-700 border border-slate-600 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-purple-500">
           <option value="">Barcha do'kon</option>
           {shops.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
         </select>

@@ -161,12 +161,7 @@ const AdminSystemSettings = () => {
 
         const COLLECTIONS = ['phones', 'sales', 'credits', 'expenses', 'contacts', 'returns'];
         for (const col of COLLECTIONS) {
-          // shopId yo'q yozuvlarni topish
-          const snap = await getDocs(
-            query(collection(db, col), where('shopId', '==', null))
-          ).catch(() => null);
-
-          // Firestore null query ishlamasa, barchasini olib filtrlash
+          // shopId yo'q yozuvlarni topish — barcha hujjatlarni olib, client-da filtrlaymiz
           const allSnap = await getDocs(collection(db, col));
           const toUpdate = [];
           allSnap.forEach((d) => {

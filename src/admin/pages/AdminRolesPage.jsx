@@ -36,7 +36,7 @@ const PERMISSION_LABELS = {
 const ROLES = [
   { key: 'cashier', label: 'Kassir', color: 'text-slate-300', defaults: { view_inventory: true, create_sales: true } },
   { key: 'manager', label: 'Menejer', color: 'text-amber-300', defaults: { view_inventory: true, add_phone: true, edit_phone: true, create_sales: true, manage_credits: true, view_expenses: true, add_expenses: true, export_reports: true } },
-  { key: 'admin', label: 'Admin', color: 'text-blue-300', defaults: Object.fromEntries(Object.keys(DEFAULT_PERMISSIONS).filter((k) => k !== 'delete_phone').map((k) => [k, true])) },
+  { key: 'admin', label: 'Admin', color: 'text-blue-300', defaults: Object.fromEntries(Object.keys(DEFAULT_PERMISSIONS).map((k) => [k, true])) },
   { key: 'superadmin', label: 'Super Admin', color: 'text-purple-300', defaults: Object.fromEntries(Object.keys(DEFAULT_PERMISSIONS).map((k) => [k, true])) },
 ];
 

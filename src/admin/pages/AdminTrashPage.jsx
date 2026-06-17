@@ -23,27 +23,13 @@ const AdminTrashPage = () => {
       console.error("Trash Page - shops fetch error:", err);
     });
 
-    // Real-time listener for all phones to filter deleted ones in JS
-    const unsubPhones = onSnapshot(collection(db, 'phones'), (snap) => {
+    // Real-time listener — faqat o'chirilgan telefonlarni olish
+    const unsubPhones = onSnapshot(
+      query(collection(db, 'phones'), where('isDeleted', '==', true)),
+      (snap) => {
       const data = [];
-      snap.forEach((d) => {
-        const item = d.data();
-        if (item.isDeleted === true) {
-          data.push({ id: d.id, ...item });
-        }
-      });
-      
-      // Sort in JS
-      data.sort((a, b) => {
-        const aTime = a.deletedAt?.toMillis?.() || 0;
-        const bTime = b.deletedAt?.toMillis?.() || 0;
-        return bTime - aTime;
-      });
-
-      console.log('Total phones fetched:', snap.size, '| Deleted phones found:', data.length);
-      if (snap.size > 0) {
-        console.log('Sample data (first 3 items):', snap.docs.slice(0, 3).map(d => ({ id: d.id, ...d.data() })));
-      }
+      snap.forEach((d) => data.push({ id: d.id, ...d.data() }));
+      data.sort((a, b) => (b.deletedAt?.toMillis?.() || 0) - (a.deletedAt?.toMillis?.() || 0));
       setItems(data);
       setLoading(false);
       setError(null);

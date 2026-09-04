@@ -92,24 +92,13 @@ export const isOverdue = (dueDate) => {
 export const validateIMEI = (imei) => {
   if (!imei) return false;
   
-  // Remove any non-digit characters (spaces, dashes, etc.)
+  // Strip out any non-digit characters (spaces, dashes, etc.)
   const cleaned = String(imei).replace(/\D/g, '');
   
-  // IMEI must be exactly 15 digits
-  if (cleaned.length !== 15) return false;
+  // IMEI 14 xonadan 15 xonagacha raqamlardan iborat bo'lishi kerak
+  if (cleaned.length < 14 || cleaned.length > 15) return false;
   
-  // Luhn Algorithm check
-  let sum = 0;
-  for (let i = 0; i < 15; i++) {
-    let digit = parseInt(cleaned[i]);
-    if (i % 2 === 1) {
-      digit *= 2;
-      if (digit > 9) digit -= 9;
-    }
-    sum += digit;
-  }
-  
-  return sum % 10 === 0;
+  return true;
 };
 
 // Status helpers

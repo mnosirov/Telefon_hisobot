@@ -83,29 +83,46 @@ const findRam = (val) => {
   return '';
 };
 
-const findUzimei = (val) => {
-  if (!val) return '';
-  const cleanVal = String(val).trim().toLowerCase();
-  if (cleanVal.includes('ikkalasi') || cleanVal.includes('both')) return 'Ikkalasi o\'tgan';
-  if (cleanVal.includes('imei 1') || cleanVal.includes('imei1')) return 'Faqat IMEI 1 o\'tgan';
-  if (cleanVal.includes('imei 2') || cleanVal.includes('imei2')) return 'Faqat IMEI 2 o\'tgan';
-  if (cleanVal.includes('o\'tmagan') || cleanVal.includes('otmagan') || cleanVal.includes('no') || cleanVal.includes('not')) return 'O\'tmagan';
-  return '';
+// BigInt va ilmiy formatdagi (scientific notation) IMEIlarni to'g'ri tozalash
+const cleanImeiValue = (val) => {
+  if (val === undefined || val === null || val === '') return '';
+  
+  if (typeof val === 'number') {
+    if (isNaN(val)) return '';
+    try {
+      const str = val.toLocaleString('fullwide', { useGrouping: false });
+      if (!str.includes('e') && !str.includes('E')) {
+        return str.replace(/\D/g, '').slice(0, 15);
+      }
+      return BigInt(Math.round(val)).toString().slice(0, 15);
+    } catch (e) {
+      return String(Math.round(val)).replace(/\D/g, '').slice(0, 15);
+    }
+  }
+
+  const str = String(val).trim();
+  if (!str) return '';
+
+  if (/[eE][+-]?\d+/.test(str)) {
+    const num = Number(str);
+    if (!isNaN(num)) {
+      try {
+        return BigInt(Math.round(num)).toString().slice(0, 15);
+      } catch (e) {
+        // fallback
+      }
+    }
+  }
+
+  return str.replace(/\D/g, '').slice(0, 15);
 };
 
-const parseBoolean = (val) => {
-  if (val === undefined || val === null) return true;
-  const cleanVal = String(val).trim().toLowerCase();
-  if (cleanVal === 'yo\'q' || cleanVal === 'yoq' || cleanVal === 'no' || cleanVal === 'false' || cleanVal === '0') return false;
-  return true;
-};
-
-// Kalitlarni maydonlarga moslash jadvali
+// Kalitlarni maydonlarga moslash jadvali (imei2 imei dan oldin kelishi kerak)
 const columnMappings = {
   brand: ['brand', 'brend', 'firma', 'marka', 'производитель'],
   model: ['model', 'nomi', 'name', 'модель', 'название'],
-  imei: ['imei', 'imei 1', 'imei1', 'серийный', 'serial'],
-  imei2: ['imei 2', 'imei2'],
+  imei2: ['imei 2', 'imei2', 'imei-2', 'imei_2', 'imei (2)', 'имей 2', 'имей2', 'second imei', '2nd imei'],
+  imei: ['imei 1', 'imei1', 'imei-1', 'imei_1', 'imei (1)', 'имей 1', 'имей1', 'imei', 'имей', 'imei kodi', 'imei kod', 'серийный', 'serial', 'sn', 's/n'],
   condition: ['condition', 'holat', 'holati', 'состояние'],
   color: ['color', 'rang', 'rangi', 'цвет'],
   storageSize: ['storage', 'xotira', 'xotirasi', 'память', 'storage size'],
@@ -158,12 +175,23 @@ const parsePriceAsUSD = (val) => {
 };
 
 const getMappedKey = (header) => {
-  const cleanHeader = String(header).trim().toLowerCase();
+  if (!header) return null;
+  const cleanHeader = String(header).trim().toLowerCase().replace(/[_\-\/\(\):]/g, ' ').replace(/\s+/g, ' ');
+
+  // 1-bosqich: Aniq moslik (Exact match)
   for (const [key, aliases] of Object.entries(columnMappings)) {
-    if (aliases.some(alias => cleanHeader === alias || cleanHeader.includes(alias))) {
+    if (aliases.some(alias => cleanHeader === alias)) {
       return key;
     }
   }
+
+  // 2-bosqich: Qisman moslik (Includes match)
+  for (const [key, aliases] of Object.entries(columnMappings)) {
+    if (aliases.some(alias => cleanHeader.includes(alias))) {
+      return key;
+    }
+  }
+
   return null;
 };
 
@@ -233,8 +261,8 @@ export const parseExcelFile = (file) => {
           const phone = {
             brand: brand || 'Samsung', // Default brand
             model: model || 'Noma\'lum model',
-            imei: String(rawPhone.imei || '').replace(/\D/g, '').slice(0, 15),
-            imei2: String(rawPhone.imei2 || '').replace(/\D/g, '').slice(0, 15),
+            imei: cleanImeiValue(rawPhone.imei),
+            imei2: cleanImeiValue(rawPhone.imei2),
             condition: findCondition(rawPhone.condition),
             color: findColor(rawPhone.color),
             storageSize: findStorage(rawPhone.storageSize),

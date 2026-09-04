@@ -128,11 +128,14 @@ export const generateShopExcelReport = async (shopId, shopName) => {
       .map(doc => doc.data())
       .filter(d => d.isDeleted !== true) // Filter out deleted ones, include those where isDeleted is missing
       .map(d => {
+        const isApple = d.brand === 'Apple';
         return {
           'Brand': d.brand || '—',
           'Model': d.model || '—',
           'IMEI': d.imei || '—',
           'IMEI 2': d.imei2 || '—',
+          'Batareka (%)': isApple ? (d.batteryHealth !== undefined && d.batteryHealth !== null && d.batteryHealth !== '' ? `${d.batteryHealth}%` : '—') : '',
+          'Zaryadlash soni': isApple ? (d.chargeCount !== undefined && d.chargeCount !== null && d.chargeCount !== '' ? d.chargeCount : '—') : '',
           'Yetkazib beruvchi': d.supplierName || '—',
           'Xarid narxi ($)': d.purchasePriceUSD || 0,
           'Xarid narxi (so\'m)': d.purchasePriceUZS || 0,

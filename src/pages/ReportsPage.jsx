@@ -153,25 +153,35 @@ const ReportsPage = () => {
         'Sana': formatDate(s.saleDate),
       }));
     } else if (activeTab === 'imports') {
-      rows = data.imports.map((p) => ({
-        'Brand': p.brand,
-        'Model': p.model,
-        'IMEI': p.imei,
-        'Holat': p.condition,
-        'Status': p.status,
-        'Yetkazib beruvchi': p.supplierName || '—',
-        'Xarid narxi': p.purchasePriceUZS,
-        'Sana': p.purchaseDate || formatDate(p.createdAt),
-      }));
+      rows = data.imports.map((p) => {
+        const isApple = p.brand === 'Apple';
+        return {
+          'Brand': p.brand,
+          'Model': p.model,
+          'IMEI': p.imei,
+          'Holat': p.condition,
+          'Status': p.status,
+          'Batareka (%)': isApple ? (p.batteryHealth !== undefined && p.batteryHealth !== null ? `${p.batteryHealth}%` : '—') : '',
+          'Zaryadlash soni': isApple ? (p.chargeCount !== undefined && p.chargeCount !== null ? p.chargeCount : '—') : '',
+          'Yetkazib beruvchi': p.supplierName || '—',
+          'Xarid narxi': p.purchasePriceUZS,
+          'Sana': p.purchaseDate || formatDate(p.createdAt),
+        };
+      });
     } else if (activeTab === 'inventory') {
-      rows = data.inventory.map((p) => ({
-        'Brand': p.brand,
-        'Model': p.model,
-        'IMEI': p.imei,
-        'Holat': p.condition,
-        'Status': p.status,
-        'Xarid narxi': p.purchasePriceUZS,
-      }));
+      rows = data.inventory.map((p) => {
+        const isApple = p.brand === 'Apple';
+        return {
+          'Brand': p.brand,
+          'Model': p.model,
+          'IMEI': p.imei,
+          'Holat': p.condition,
+          'Status': p.status,
+          'Batareka (%)': isApple ? (p.batteryHealth !== undefined && p.batteryHealth !== null ? `${p.batteryHealth}%` : '—') : '',
+          'Zaryadlash soni': isApple ? (p.chargeCount !== undefined && p.chargeCount !== null ? p.chargeCount : '—') : '',
+          'Xarid narxi': p.purchasePriceUZS,
+        };
+      });
     } else if (activeTab === 'debts') {
       rows = data.debts.map((d) => ({
         'Xaridor': d.buyerName,

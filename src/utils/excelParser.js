@@ -144,8 +144,8 @@ const columnMappings = {
   color: ['color', 'rang', 'rangi', 'цвет'],
   storageSize: ['storage', 'xotira', 'xotirasi', 'память', 'storage size'],
   ram: ['ram', 'ozu', 'operativka', 'ram (ozu)', 'оперативная память'],
-  batteryHealth: ['battery', 'batareka', 'batareya', 'akb', 'health', 'емкость'],
-  chargeCount: ['charge', 'charge count', 'zaryad', 'zaryadlar soni', 'cycles', 'циклы'],
+  batteryHealth: ['battery', 'batareka', 'batareya', 'akb', 'health', 'емкость', 'emkost', 'emkost batarei', 'battery health', 'batareya foizi', 'batareka %', 'akb %', 'akb foizi', 'batareka foizi', 'batareka (%)'],
+  chargeCount: ['charge', 'charge count', 'zaryad', 'zaryadlar soni', 'cycles', 'циклы', 'zaryad sanogi', 'zaryadlanish soni', 'zaryad soni', 'cycle count', 'zaryadlash sanog\'i', 'zaryadlash sanogi', 'zaryad (cycles)'],
   hasBox: ['box', 'karobka', 'karobkasi', 'box/box', 'коробка'],
   // USD ustunlari — USTUVOR (purchasePrice dan oldin joylashgan)
   purchasePriceUSD: ['price usd', 'narx usd', 'narxi usd', 'usd narx', 'dollar narx', 'dollar price', 'xarid narxi usd', 'usd price'],

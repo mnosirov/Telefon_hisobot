@@ -106,6 +106,11 @@ const ImportModal = ({ isOpen, onClose, onImportSuccess }) => {
       if (field === 'purchasePrice') {
         updated[index][field] = parseFloat(value) || 0;
       }
+      // Batareya va zaryad sanog'ini int qilish
+      if (field === 'batteryHealth' || field === 'chargeCount') {
+        const cleanNum = String(value).replace(/\D/g, '');
+        updated[index][field] = cleanNum !== '' ? parseInt(cleanNum) : undefined;
+      }
 
       return updated;
     });
@@ -393,6 +398,8 @@ iPhone 14 Pro Max 256GB Silver IMEI:359876543210987 Narxi:$950 Yangi`}
                       <th className="p-3 min-w-[90px]">Rang</th>
                       <th className="p-3 min-w-[90px]">Xotira</th>
                       <th className="p-3 min-w-[90px]">RAM</th>
+                      <th className="p-3 min-w-[90px]">Batareka (%)</th>
+                      <th className="p-3 min-w-[95px]">Zaryad (cycles)</th>
                       <th className="p-3 min-w-[90px]">UZIMEI</th>
                       <th className="p-3 min-w-[120px]">Yetkazib beruvchi</th>
                       <th className="p-3 w-10"></th>
@@ -526,6 +533,31 @@ iPhone 14 Pro Max 256GB Silver IMEI:359876543210987 Narxi:$950 Yangi`}
                               <option value="">RAM</option>
                               {RAM_OPTIONS.map(r => <option key={r} value={r}>{r}</option>)}
                             </select>
+                          </td>
+                          {/* Batareka (%) */}
+                          <td className="p-1">
+                            <input
+                              type="number"
+                              value={phone.batteryHealth ?? ''}
+                              onChange={(e) => handleCellChange(idx, 'batteryHealth', e.target.value)}
+                              disabled={!isApple}
+                              className="w-full px-2 py-1 border border-dark-200 dark:border-dark-700 rounded bg-white dark:bg-dark-800 text-dark-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-primary-500 disabled:opacity-50 disabled:bg-dark-100 dark:disabled:bg-dark-700"
+                              placeholder={isApple ? "%" : "—"}
+                              min="0"
+                              max="100"
+                            />
+                          </td>
+                          {/* Zaryad (cycles) */}
+                          <td className="p-1">
+                            <input
+                              type="number"
+                              value={phone.chargeCount ?? ''}
+                              onChange={(e) => handleCellChange(idx, 'chargeCount', e.target.value)}
+                              disabled={!isApple}
+                              className="w-full px-2 py-1 border border-dark-200 dark:border-dark-700 rounded bg-white dark:bg-dark-800 text-dark-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-primary-500 disabled:opacity-50 disabled:bg-dark-100 dark:disabled:bg-dark-700"
+                              placeholder={isApple ? "Soni" : "—"}
+                              min="0"
+                            />
                           </td>
                           {/* UZIMEI */}
                           <td className="p-1">

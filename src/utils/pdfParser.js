@@ -263,7 +263,24 @@ export const parseTextLine = (line) => {
 
   let model = modelText || 'Model';
 
-  return {
+  // 8.5. Batareka va Zaryadlash sanog'ini (Apple uchun) topish
+  let batteryHealth;
+  let chargeCount;
+
+  const batteryMatch = cleanLine.match(/\b(\d{2,3})\s*%/i) || cleanLine.match(/\b(?:akb|batareya|batareka|health)\s*[:=]?\s*(\d{2,3})\b/i);
+  if (batteryMatch) {
+    const val = parseInt(batteryMatch[1] || batteryMatch[2]);
+    if (val >= 50 && val <= 100) {
+      batteryHealth = val;
+    }
+  }
+
+  const chargeMatch = cleanLine.match(/\b(\d{1,4})\s*(?:zaryad|cycles|cycle|цикл|циклы)\b/i) || cleanLine.match(/\b(?:zaryad|cycles|cycle)\s*[:=]?\s*(\d{1,4})\b/i);
+  if (chargeMatch) {
+    chargeCount = parseInt(chargeMatch[1] || chargeMatch[2]);
+  }
+
+  const phoneRes = {
     brand: brand || 'Samsung',
     model,
     imei,
@@ -280,6 +297,13 @@ export const parseTextLine = (line) => {
     isArchived: false,
     isDeleted: false,
   };
+
+  if (phoneRes.brand === 'Apple') {
+    if (batteryHealth !== undefined) phoneRes.batteryHealth = batteryHealth;
+    if (chargeCount !== undefined) phoneRes.chargeCount = chargeCount;
+  }
+
+  return phoneRes;
 };
 
 // Matnli ro'yxatni (blok matnni) to'liq parse qilish

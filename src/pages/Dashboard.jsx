@@ -503,7 +503,7 @@ const Dashboard = () => {
         {hasPermission('view_inventory') && <StatCard icon={Smartphone} label="Sotuvda" value={stats?.inStock || 0} sub={`Tannarxi: ${formatCurrency(stats?.stockValue || 0, currency)}`} color="blue" />}
         {hasPermission('manage_credits') && <StatCard icon={AlertCircle} label="Qarzlar" value={formatCurrency(stats?.totalDebt || 0, currency)} sub={`${overdueDebts.length} ta muddati o'tgan`} color={overdueDebts.length > 0 ? 'red' : 'orange'} />}
         {hasPermission('export_reports') && <StatCard icon={DollarSign} label="Oydagi foyda" value={formatCurrency(stats?.monthlyProfit || 0, currency)} sub="Savdo − Tan narx" color={stats?.monthlyProfit >= 0 ? 'green' : 'red'} />}
-        {hasPermission('create_sales') && <StatCard icon={CreditCard} label="Oydagi kassa oqimi" value={formatCurrency(stats?.monthlyCash || 0, currency)} sub="Oylik kirim − Chiqim" color="indigo" />}
+        {hasPermission('create_sales') && <StatCard icon={CreditCard} label="Kassada naqd" value={formatCurrency(currency === 'USD' ? allTimeCash.usd : allTimeCash.uzs, currency)} sub="Umumiy kassa balansi" color="indigo" />}
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">

@@ -83,6 +83,23 @@ const findRam = (val) => {
   return '';
 };
 
+const findUzimei = (val) => {
+  if (!val) return '';
+  const cleanVal = String(val).trim().toLowerCase();
+  if (cleanVal.includes('ikkalasi') || cleanVal.includes('both')) return 'Ikkalasi o\'tgan';
+  if (cleanVal.includes('imei 1') || cleanVal.includes('imei1')) return 'Faqat IMEI 1 o\'tgan';
+  if (cleanVal.includes('imei 2') || cleanVal.includes('imei2')) return 'Faqat IMEI 2 o\'tgan';
+  if (cleanVal.includes('o\'tmagan') || cleanVal.includes('otmagan') || cleanVal.includes('no') || cleanVal.includes('not')) return 'O\'tmagan';
+  return '';
+};
+
+const parseBoolean = (val) => {
+  if (val === undefined || val === null) return true;
+  const cleanVal = String(val).trim().toLowerCase();
+  if (cleanVal === 'yo\'q' || cleanVal === 'yoq' || cleanVal === 'no' || cleanVal === 'false' || cleanVal === '0') return false;
+  return true;
+};
+
 // BigInt va ilmiy formatdagi (scientific notation) IMEIlarni to'g'ri tozalash
 const cleanImeiValue = (val) => {
   if (val === undefined || val === null || val === '') return '';

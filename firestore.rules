@@ -75,7 +75,7 @@ service cloud.firestore {
       allow read: if isSuperAdmin() || (isCashier() && belongsToMyShop(resource.data.shopId));
       allow create: if isSuperAdmin() || (isCashier() && writingToMyShop());
       allow update: if isSuperAdmin() || (isManager() && belongsToMyShop(resource.data.shopId));
-      allow delete: if isSuperAdmin() || (isAdmin() && belongsToMyShop(resource.data.shopId));
+      allow delete: if isSuperAdmin() || (isManager() && belongsToMyShop(resource.data.shopId));
     }
 
     // ─── Qarzlar ──────────────────────────────────────────────────────
@@ -84,7 +84,7 @@ service cloud.firestore {
       allow read: if isSuperAdmin() || (isCashier() && belongsToMyShop(resource.data.shopId));
       allow create: if isSuperAdmin() || (isCashier() && writingToMyShop());
       allow update: if isSuperAdmin() || (isManager() && belongsToMyShop(resource.data.shopId));
-      allow delete: if isSuperAdmin() || (isAdmin() && belongsToMyShop(resource.data.shopId));
+      allow delete: if isSuperAdmin() || (isManager() && belongsToMyShop(resource.data.shopId));
     }
 
     // ─── Xarajatlar ───────────────────────────────────────────────────

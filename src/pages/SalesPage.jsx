@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import {
   collection, query, orderBy, getDocs, addDoc, updateDoc, deleteDoc,
-  serverTimestamp, where, doc, getDoc, deleteField,
+  serverTimestamp, where, doc, getDoc, deleteField, writeBatch,
 } from 'firebase/firestore';
 import { db } from '../firebase/config';
 import { useAuth } from '../contexts/AuthContext';
@@ -534,6 +534,7 @@ const SalesPage = () => {
     try {
       setDeleting(true);
       await deleteDoc(doc(db, 'sales', sale.id));
+      
       if (sale.phoneId) {
         await updateDoc(doc(db, 'phones', sale.phoneId), {
           status: 'Sotuvda',
@@ -542,14 +543,27 @@ const SalesPage = () => {
           buyerName: deleteField(),
           warranty: deleteField(),
         });
+
+        // Nasiyaga berilgan bo'lsa, qarzlar jadvalidan ham o'chirish
+        const creditSnap = await getDocs(query(
+          collection(db, 'credits'),
+          where('shopId', '==', shopId),
+          where('phoneId', '==', sale.phoneId)
+        ));
+        if (!creditSnap.empty) {
+          const batch = writeBatch(db);
+          creditSnap.docs.forEach(d => batch.delete(d.ref));
+          await batch.commit();
+        }
       }
+
       await logAction(currentUser.uid, 'sale_deleted', { saleId: sale.id, phoneName: sale.phoneName });
-      toast.success("Sotuv o'chirildi, telefon qaytarildi");
+      toast.success("Sotuv o'chirildi, telefon sotuvga qaytarildi");
       setDeleteModal({ open: false, sale: null });
       fetchData();
     } catch (err) {
-      console.error(err);
-      toast.error('Xato yuz berdi');
+      console.error('Delete sale error:', err);
+      toast.error('O\'chirishda xato: ' + (err.message || 'Ruxsat yetarli emas'));
     } finally {
       setDeleting(false);
     }

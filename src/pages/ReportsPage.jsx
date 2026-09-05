@@ -59,6 +59,28 @@ const ReportsPage = () => {
       const phoneMap = {};
       const inventory = [];
       const imports = [];
+      const normalizeDateStr = (rawDate) => {
+        if (!rawDate) return null;
+        if (rawDate?.toDate) {
+          return getTashkentDateString(rawDate.toDate());
+        }
+        if (rawDate instanceof Date) {
+          return getTashkentDateString(rawDate);
+        }
+        const str = String(rawDate).trim();
+        if (/^\d{2}\.\d{2}\.\d{4}$/.test(str)) {
+          const [d, m, y] = str.split('.');
+          return `${y}-${m}-${d}`;
+        }
+        if (/^\d{4}\/\d{2}\/\d{2}$/.test(str)) {
+          return str.replace(/\//g, '-');
+        }
+        if (/^\d{4}-\d{2}-\d{2}/.test(str)) {
+          return str.slice(0, 10);
+        }
+        return null;
+      };
+
       phonesSnap.forEach((d) => {
         const pData = d.data();
         phoneMap[d.id] = pData;
@@ -66,7 +88,7 @@ const ReportsPage = () => {
           if (!pData.isArchived) {
             inventory.push({ id: d.id, ...pData });
           }
-          const pDate = pData.purchaseDate || (pData.createdAt && typeof pData.createdAt.toDate === 'function' ? getTashkentDateString(pData.createdAt.toDate()) : null);
+          const pDate = normalizeDateStr(pData.purchaseDate) || normalizeDateStr(pData.createdAt);
           if (pDate && pDate >= dateFrom && pDate <= dateTo) {
             imports.push({ id: d.id, ...pData });
           }

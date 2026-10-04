@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import {
   collection, query, orderBy, getDocs, addDoc, updateDoc, deleteDoc,
   serverTimestamp, where, doc, getDoc, deleteField, writeBatch,
@@ -13,7 +13,11 @@ import toast from 'react-hot-toast';
 import Modal from '../components/ui/Modal';
 import Pagination from '../components/ui/Pagination';
 import LoadingSpinner from '../components/ui/LoadingSpinner';
-import { Plus, Search, ShoppingCart, TrendingUp, RotateCcw, AlertTriangle, Eye, Info, DollarSign, History, Edit2, Trash2 } from 'lucide-react';
+import {
+  Plus, Search, ShoppingCart, TrendingUp, RotateCcw, AlertTriangle, Eye,
+  Info, DollarSign, History, Edit2, Trash2, Calendar, ChevronLeft,
+  ChevronRight, Smartphone, X, Filter
+} from 'lucide-react';
 import { formatUZS, formatUSD, formatCurrency, formatDate, formatDateTime, formatTime, getTashkentDateString } from '../utils/helpers';
 import { PAYMENT_METHODS } from '../utils/constants';
 
@@ -43,6 +47,25 @@ const RETURN_REASONS = [
   'Boshqa sabab',
 ];
 
+const UZ_MONTHS = [
+  'Yanvar', 'Fevral', 'Mart', 'Aprel', 'May', 'Iyun',
+  'Iyul', 'Avgust', 'Sentyabr', 'Oktyabr', 'Noyabr', 'Dekabr'
+];
+
+const getSaleYearMonth = (sale) => {
+  const raw = sale.saleDate || sale.createdAt;
+  if (!raw) return '';
+  const str = getTashkentDateString(raw);
+  return str ? str.slice(0, 7) : '';
+};
+
+const formatMonthLabel = (ym) => {
+  if (!ym || ym === 'all') return 'Barcha oylar';
+  const [y, m] = ym.split('-');
+  const idx = parseInt(m, 10) - 1;
+  return `${UZ_MONTHS[idx] || m} ${y}`;
+};
+
 const SalesPage = () => {
   const { hasPermission, logAction, currentUser, userProfile, isAdmin, hasRole } = useAuth();
   const { currency, exchangeRate } = useSettings();
@@ -54,6 +77,9 @@ const SalesPage = () => {
   const [loading, setLoading] = useState(true);
   const [modalOpen, setModalOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const currentMonthStr = useMemo(() => getTashkentDateString().slice(0, 7), []);
+  const [selectedMonth, setSelectedMonth] = useState(currentMonthStr);
+  const [modelFilter, setModelFilter] = useState('');
   const [search, setSearch] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const [usdRate, setUsdRate] = useState(exchangeRate || 12700);
@@ -569,55 +595,140 @@ const SalesPage = () => {
     }
   };
 
-  const filtered = sales.filter((s) => {
-    const q = search.toLowerCase();
-    return !q || [s.buyerName, s.phoneName, s.phoneImei].some((f) => f?.toLowerCase().includes(q));
-  });
+  const prevMonthStr = useMemo(() => {
+    const [y, m] = currentMonthStr.split('-').map(Number);
+    const d = new Date(y, m - 2, 1);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+  }, [currentMonthStr]);
+
+  const availableMonths = useMemo(() => {
+    const set = new Set();
+    sales.forEach((s) => {
+      const ym = getSaleYearMonth(s);
+      if (ym) set.add(ym);
+    });
+    set.add(currentMonthStr);
+    return Array.from(set).sort().reverse();
+  }, [sales, currentMonthStr]);
+
+  const handlePrevMonth = () => {
+    const baseYM = selectedMonth === 'all' ? currentMonthStr : selectedMonth;
+    const [y, m] = baseYM.split('-').map(Number);
+    const prevDate = new Date(y, m - 2, 1);
+    const prevYM = `${prevDate.getFullYear()}-${String(prevDate.getMonth() + 1).padStart(2, '0')}`;
+    setSelectedMonth(prevYM);
+    setCurrentPage(1);
+    setModelFilter('');
+  };
+
+  const handleNextMonth = () => {
+    const baseYM = selectedMonth === 'all' ? currentMonthStr : selectedMonth;
+    const [y, m] = baseYM.split('-').map(Number);
+    const nextDate = new Date(y, m, 1);
+    const nextYM = `${nextDate.getFullYear()}-${String(nextDate.getMonth() + 1).padStart(2, '0')}`;
+    setSelectedMonth(nextYM);
+    setCurrentPage(1);
+    setModelFilter('');
+  };
+
+  const monthSales = useMemo(() => {
+    if (selectedMonth === 'all') return sales;
+    return sales.filter((s) => getSaleYearMonth(s) === selectedMonth);
+  }, [sales, selectedMonth]);
+
+  const soldModelsSummary = useMemo(() => {
+    const counts = {};
+    monthSales.forEach((s) => {
+      if (s.status === 'Qaytarilgan') return;
+      const name = s.phoneName || "Noma'lum telefon";
+      if (!counts[name]) {
+        counts[name] = { count: 0, totalUSD: 0, totalUZS: 0 };
+      }
+      counts[name].count += 1;
+      counts[name].totalUSD += s.salePriceUSD || 0;
+      counts[name].totalUZS += s.salePriceUZS || 0;
+    });
+
+    return Object.entries(counts)
+      .map(([name, data]) => ({ name, ...data }))
+      .sort((a, b) => b.count - a.count);
+  }, [monthSales]);
+
+  const filtered = useMemo(() => {
+    let result = monthSales;
+
+    if (modelFilter) {
+      result = result.filter((s) => s.phoneName === modelFilter);
+    }
+
+    const q = search.toLowerCase().trim();
+    if (q) {
+      result = result.filter((s) =>
+        [s.buyerName, s.phoneName, s.phoneImei].some((f) => f?.toLowerCase().includes(q))
+      );
+    }
+
+    return result;
+  }, [monthSales, search, modelFilter]);
 
   const totalPages = Math.ceil(filtered.length / ITEMS_PER_PAGE);
   const paginated = filtered.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE);
-  const totalRevenue = sales.reduce((a, s) => {
-    const isReturned = s.status === 'Qaytarilgan';
-    const sPrice = currency === 'USD' ? (s.salePriceUSD || 0) : (s.salePriceUZS || 0);
-    
-    if (isReturned) {
-      if (s.refundAmountUZS !== undefined) {
-        const rAmount = currency === 'USD' ? (s.refundAmountUSD || (s.refundAmountUZS / 12700)) : (s.refundAmountUZS || 0);
-        return a + (sPrice - rAmount); // Qaytarishdan qolgan sof foyda/savdo
-      }
-      return a; // refundAmount yo'q bo'lsa, bu sotuv savdoga qo'shilmaydi
-    }
-    
-    return a + sPrice;
-  }, 0);
 
-  const totalProfit = sales.reduce((a, s) => {
-    const isReturned = s.status === 'Qaytarilgan';
-    const sPrice = currency === 'USD' ? (s.salePriceUSD || 0) : (s.salePriceUZS || 0);
-    
-    if (isReturned) {
-      if (s.refundAmountUZS !== undefined) {
-        const rAmount = currency === 'USD' ? (s.refundAmountUSD || (s.refundAmountUZS / 12700)) : (s.refundAmountUZS || 0);
-        return a + (sPrice - rAmount);
+  const totalRevenue = useMemo(() => {
+    return monthSales.reduce((a, s) => {
+      const isReturned = s.status === 'Qaytarilgan';
+      const sPrice = currency === 'USD' ? (s.salePriceUSD || 0) : (s.salePriceUZS || 0);
+      
+      if (isReturned) {
+        if (s.refundAmountUZS !== undefined) {
+          const rAmount = currency === 'USD' ? (s.refundAmountUSD || (s.refundAmountUZS / 12700)) : (s.refundAmountUZS || 0);
+          return a + (sPrice - rAmount); // Qaytarishdan qolgan sof foyda/savdo
+        }
+        return a;
       }
-      return a; // refundAmount yo'q bo'lsa, foyda ham 0
-    }
-    
-    const pPrice = currency === 'USD' 
-      ? (s.purchasePriceUSD || (s.purchasePriceUZS ? s.purchasePriceUZS / 12700 : 0))
-      : (s.purchasePriceUZS || 0);
-    
-    return a + (sPrice - pPrice);
-  }, 0);
+      return a + sPrice;
+    }, 0);
+  }, [monthSales, currency]);
+
+  const totalProfit = useMemo(() => {
+    return monthSales.reduce((a, s) => {
+      const isReturned = s.status === 'Qaytarilgan';
+      const sPrice = currency === 'USD' ? (s.salePriceUSD || 0) : (s.salePriceUZS || 0);
+      
+      if (isReturned) {
+        if (s.refundAmountUZS !== undefined) {
+          const rAmount = currency === 'USD' ? (s.refundAmountUSD || (s.refundAmountUZS / 12700)) : (s.refundAmountUZS || 0);
+          return a + (sPrice - rAmount);
+        }
+        return a;
+      }
+      
+      const pPrice = currency === 'USD' 
+        ? (s.purchasePriceUSD || (s.purchasePriceUZS ? s.purchasePriceUZS / 12700 : 0))
+        : (s.purchasePriceUZS || 0);
+      
+      return a + (sPrice - pPrice);
+    }, 0);
+  }, [monthSales, currency]);
 
   if (loading) return <LoadingSpinner />;
 
   return (
     <div className="space-y-5 animate-fade-in">
+      {/* ── Top Header ────────────────────────────────────────── */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-dark-900 dark:text-white">Sotuvlar</h1>
-          <p className="text-sm text-dark-400">{sales.length} ta sotuv</p>
+          <div className="flex items-center gap-2.5 flex-wrap">
+            <h1 className="text-2xl font-bold text-dark-900 dark:text-white">Sotuvlar</h1>
+            <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-primary-100 dark:bg-primary-950/60 text-primary-600 dark:text-primary-400 border border-primary-200 dark:border-primary-800">
+              {formatMonthLabel(selectedMonth)}
+            </span>
+          </div>
+          <p className="text-sm text-dark-400 mt-0.5">
+            {selectedMonth === 'all'
+              ? `Barcha davr bo'yicha ${sales.length} ta sotuv`
+              : `${formatMonthLabel(selectedMonth)} oyida ${monthSales.length} ta sotuv`}
+          </p>
         </div>
         {hasPermission('create_sales') && (
           <button onClick={openAdd} className="btn-primary">
@@ -626,40 +737,227 @@ const SalesPage = () => {
         )}
       </div>
 
+      {/* ── Oylik filter boshqaruvi (Month Selector Bar) ───────── */}
+      <div className="card p-3 sm:p-4">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+          {/* Quick filter tabs / pills */}
+          <div className="flex items-center gap-2 flex-wrap">
+            <button
+              onClick={() => { setSelectedMonth('all'); setCurrentPage(1); setModelFilter(''); }}
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                selectedMonth === 'all'
+                  ? 'bg-primary-600 text-white shadow-sm'
+                  : 'bg-dark-100 dark:bg-dark-700 hover:bg-dark-200 dark:hover:bg-dark-600 text-dark-700 dark:text-dark-300'
+              }`}
+            >
+              Barchasi ({sales.length})
+            </button>
+            <button
+              onClick={() => { setSelectedMonth(currentMonthStr); setCurrentPage(1); setModelFilter(''); }}
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                selectedMonth === currentMonthStr
+                  ? 'bg-primary-600 text-white shadow-sm'
+                  : 'bg-dark-100 dark:bg-dark-700 hover:bg-dark-200 dark:hover:bg-dark-600 text-dark-700 dark:text-dark-300'
+              }`}
+            >
+              Joriy oy ({formatMonthLabel(currentMonthStr)})
+            </button>
+            {prevMonthStr && (
+              <button
+                onClick={() => { setSelectedMonth(prevMonthStr); setCurrentPage(1); setModelFilter(''); }}
+                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                  selectedMonth === prevMonthStr
+                    ? 'bg-primary-600 text-white shadow-sm'
+                    : 'bg-dark-100 dark:bg-dark-700 hover:bg-dark-200 dark:hover:bg-dark-600 text-dark-700 dark:text-dark-300'
+                }`}
+              >
+                {formatMonthLabel(prevMonthStr)}
+              </button>
+            )}
+          </div>
+
+          {/* Month Navigator & Select */}
+          <div className="flex items-center gap-2 flex-wrap">
+            <button
+              onClick={handlePrevMonth}
+              className="p-2 rounded-lg bg-dark-100 dark:bg-dark-700 hover:bg-dark-200 dark:hover:bg-dark-600 text-dark-700 dark:text-dark-200 transition-colors"
+              title="Oldingi oy"
+            >
+              <ChevronLeft className="w-4 h-4" />
+            </button>
+
+            <div className="relative flex items-center">
+              <Calendar className="absolute left-2.5 w-4 h-4 text-dark-400 pointer-events-none" />
+              <select
+                value={selectedMonth}
+                onChange={(e) => {
+                  setSelectedMonth(e.target.value);
+                  setCurrentPage(1);
+                  setModelFilter('');
+                }}
+                className="input py-1.5 pl-8 pr-8 text-xs font-medium bg-dark-50 dark:bg-dark-700 cursor-pointer min-w-[150px]"
+              >
+                <option value="all">Barcha oylar</option>
+                {availableMonths.map((ym) => (
+                  <option key={ym} value={ym}>
+                    {formatMonthLabel(ym)}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <button
+              onClick={handleNextMonth}
+              className="p-2 rounded-lg bg-dark-100 dark:bg-dark-700 hover:bg-dark-200 dark:hover:bg-dark-600 text-dark-700 dark:text-dark-200 transition-colors"
+              title="Keyingi oy"
+            >
+              <ChevronRight className="w-4 h-4" />
+            </button>
+
+            <input
+              type="month"
+              value={selectedMonth === 'all' ? currentMonthStr : selectedMonth}
+              onChange={(e) => {
+                if (e.target.value) {
+                  setSelectedMonth(e.target.value);
+                  setCurrentPage(1);
+                  setModelFilter('');
+                }
+              }}
+              className="input py-1.5 px-2 text-xs w-auto max-w-[130px] hidden sm:block bg-dark-50 dark:bg-dark-700 cursor-pointer"
+              title="Ixtiyoriy oyni tanlash"
+            />
+          </div>
+        </div>
+      </div>
+
+      {/* ── Stat kartochkalari ─────────────────────────────────── */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <div className="stat-card">
           <div className="w-10 h-10 bg-primary-600 rounded-xl flex items-center justify-center">
             <ShoppingCart className="w-5 h-5 text-white" />
           </div>
           <div>
-            <p className="text-sm text-dark-400">Jami sotuvlar</p>
-            <p className="text-xl font-bold text-dark-900 dark:text-white">{sales.filter(s => s.status !== 'Qaytarilgan').length}</p>
+            <p className="text-sm text-dark-400">
+              {selectedMonth === 'all' ? 'Jami sotuvlar' : `${formatMonthLabel(selectedMonth)} sotuvlari`}
+            </p>
+            <p className="text-xl font-bold text-dark-900 dark:text-white">
+              {monthSales.filter(s => s.status !== 'Qaytarilgan').length}
+            </p>
+            {monthSales.filter(s => s.status === 'Qaytarilgan').length > 0 && (
+              <p className="text-[11px] text-red-500">
+                {monthSales.filter(s => s.status === 'Qaytarilgan').length} ta qaytarilgan
+              </p>
+            )}
           </div>
         </div>
+
         <div className="stat-card">
           <div className="w-10 h-10 bg-green-500 rounded-xl flex items-center justify-center">
             <ShoppingCart className="w-5 h-5 text-white" />
           </div>
           <div>
-            <p className="text-sm text-dark-400">Jami savdo</p>
-            <p className="text-lg font-bold text-dark-900 dark:text-white">{formatCurrency(totalRevenue, currency)}</p>
+            <p className="text-sm text-dark-400">
+              {selectedMonth === 'all' ? 'Jami savdo' : `${formatMonthLabel(selectedMonth)} savdosi`}
+            </p>
+            <p className="text-lg font-bold text-dark-900 dark:text-white">
+              {formatCurrency(totalRevenue, currency)}
+            </p>
+            <p className="text-[11px] text-dark-400">
+              {currency === 'USD' ? `≈ ${formatUZS(totalRevenue * usdRate)}` : `≈ ${formatUSD(totalRevenue / usdRate)}`}
+            </p>
           </div>
         </div>
+
         <div className="stat-card">
           <div className="w-10 h-10 bg-emerald-500 rounded-xl flex items-center justify-center">
             <TrendingUp className="w-5 h-5 text-white" />
           </div>
           <div>
-            <p className="text-sm text-dark-400">Jami foyda</p>
-            <p className="text-lg font-bold text-emerald-600 dark:text-emerald-400">{formatCurrency(totalProfit, currency)}</p>
+            <p className="text-sm text-dark-400">
+              {selectedMonth === 'all' ? 'Jami foyda' : `${formatMonthLabel(selectedMonth)} foydasi`}
+            </p>
+            <p className="text-lg font-bold text-emerald-600 dark:text-emerald-400">
+              {formatCurrency(totalProfit, currency)}
+            </p>
+            <p className="text-[11px] text-emerald-500/80">
+              {totalRevenue > 0 ? `Rentabellik: ${Math.round((totalProfit / totalRevenue) * 100)}%` : '—'}
+            </p>
           </div>
         </div>
       </div>
 
+      {/* ── Nimalar sotilgani (Sotilgan modellar xulosasi) ───────── */}
+      {soldModelsSummary.length > 0 && (
+        <div className="card p-4 space-y-2.5 border-l-4 border-primary-500">
+          <div className="flex items-center justify-between flex-wrap gap-2">
+            <div className="flex items-center gap-2">
+              <Smartphone className="w-4 h-4 text-primary-500" />
+              <h3 className="text-sm font-bold text-dark-900 dark:text-white">
+                {selectedMonth === 'all' ? 'Sotilgan modellar xulosasi' : `${formatMonthLabel(selectedMonth)} oyida sotilgan modellar`}
+              </h3>
+              <span className="text-xs px-2 py-0.5 rounded-full bg-dark-100 dark:bg-dark-700 text-dark-500 font-medium">
+                {soldModelsSummary.length} xil model
+              </span>
+            </div>
+            {modelFilter && (
+              <button
+                onClick={() => { setModelFilter(''); setCurrentPage(1); }}
+                className="text-xs text-primary-500 hover:underline flex items-center gap-1 font-medium"
+              >
+                Model filtrini tozalash <X className="w-3 h-3" />
+              </button>
+            )}
+          </div>
+
+          <div className="flex flex-wrap gap-2 pt-1">
+            {soldModelsSummary.slice(0, 12).map((m) => {
+              const isSelected = modelFilter === m.name;
+              return (
+                <button
+                  key={m.name}
+                  onClick={() => {
+                    setModelFilter(isSelected ? '' : m.name);
+                    setCurrentPage(1);
+                  }}
+                  className={`text-xs px-2.5 py-1.5 rounded-lg border transition-all flex items-center gap-1.5 ${
+                    isSelected
+                      ? 'bg-primary-600 text-white border-primary-600 shadow-sm'
+                      : 'bg-dark-50 dark:bg-dark-700/60 border-dark-200 dark:border-dark-600 hover:border-primary-500/50 text-dark-800 dark:text-dark-200'
+                  }`}
+                  title="Faqat shu model bo'yicha ko'rish uchun bosing"
+                >
+                  <span className="font-medium truncate max-w-[160px]">{m.name}</span>
+                  <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-bold ${
+                    isSelected ? 'bg-white/20 text-white' : 'bg-primary-100 dark:bg-primary-900/40 text-primary-600 dark:text-primary-300'
+                  }`}>
+                    {m.count} ta
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* ── Qidiruv ────────────────────────────────────────────── */}
       <div className="card p-4">
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-dark-400" />
-          <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Xaridor, telefon yoki IMEI..." className="input pl-9" />
+          <input
+            value={search}
+            onChange={(e) => { setSearch(e.target.value); setCurrentPage(1); }}
+            placeholder="Xaridor, telefon yoki IMEI..."
+            className="input pl-9"
+          />
+          {search && (
+            <button
+              onClick={() => { setSearch(''); setCurrentPage(1); }}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-dark-400 hover:text-dark-200"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          )}
         </div>
       </div>
 
@@ -680,7 +978,31 @@ const SalesPage = () => {
             </thead>
             <tbody>
               {paginated.length === 0 ? (
-                <tr><td colSpan={8} className="text-center py-12 text-dark-400">Sotuv topilmadi</td></tr>
+                <tr>
+                  <td colSpan={8} className="text-center py-12 text-dark-400">
+                    <div className="flex flex-col items-center justify-center gap-2">
+                      <ShoppingCart className="w-8 h-8 opacity-20" />
+                      <p className="font-medium">
+                        {selectedMonth !== 'all'
+                          ? `${formatMonthLabel(selectedMonth)} oyida sotuv topilmadi`
+                          : 'Sotuv topilmadi'}
+                      </p>
+                      {(selectedMonth !== 'all' || modelFilter || search) && (
+                        <button
+                          onClick={() => {
+                            setSelectedMonth('all');
+                            setModelFilter('');
+                            setSearch('');
+                            setCurrentPage(1);
+                          }}
+                          className="btn-secondary text-xs mt-1"
+                        >
+                          Barcha sotuvlarni ko'rish
+                        </button>
+                      )}
+                    </div>
+                  </td>
+                </tr>
               ) : (
                 paginated.map((sale) => {
                   const isReturned = sale.status === 'Qaytarilgan';

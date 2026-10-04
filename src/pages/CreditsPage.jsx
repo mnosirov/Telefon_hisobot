@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import {
   collection, query, orderBy, getDocs, addDoc, updateDoc,
-  doc, serverTimestamp, where, arrayUnion, Timestamp,
+  doc, getDoc, writeBatch, serverTimestamp, where, arrayUnion, Timestamp,
 } from 'firebase/firestore';
 import { db } from '../firebase/config';
 import { useAuth } from '../contexts/AuthContext';
@@ -309,35 +309,32 @@ const CreditsPage = () => {
   };
 
   const onAddCredit = async (data) => {
+    if (submitting) return;
     try {
       setSubmitting(true);
+
+      // Telefon holatini to'g'ridan-to'g'ri bazadan yangilangan holatda tekshirish (qayta sotilishni oldini olish)
+      const phoneRef = doc(db, 'phones', data.phoneId);
+      const phoneSnap = await getDoc(phoneRef);
+      if (!phoneSnap.exists() || phoneSnap.data().isDeleted) {
+        toast.error("Bu telefon bazadan topilmadi!");
+        fetchData();
+        return;
+      }
+      const phoneData = phoneSnap.data();
+      if (phoneData.status !== 'Sotuvda') {
+        toast.error(`Bu telefon allaqachon sotilgan yoki sotuvda emas (Holati: ${phoneData.status})!`);
+        fetchData();
+        return;
+      }
+
       const remainingDebt = data.totalPrice - data.initialPayment;
-      const phone = phones.find((p) => p.id === data.phoneId);
       const status = remainingDebt <= 0 ? "To'liq to'langan" : data.initialPayment > 0 ? "Qisman to'langan" : "To'lanmagan";
 
       const profit = data.currency === 'USD' 
-        ? (data.totalPrice - (phone?.purchasePriceUSD || 0)) * (exchangeRate || 12700)
-        : data.totalPrice - (phone?.purchasePriceUZS || 0);
+        ? (data.totalPrice - (phoneData.purchasePriceUSD || 0)) * (exchangeRate || 12700)
+        : data.totalPrice - (phoneData.purchasePriceUZS || 0);
       const saleDate = Timestamp.fromDate(new Date(data.saleDate));
-
-      // 1. Create sale record first to get its ID
-      const saleRef = await addDoc(collection(db, 'sales'), {
-        phoneId: data.phoneId,
-        phoneName: `${phone?.brand} ${phone?.model}`,
-        phoneImei: phone?.imei,
-        buyerName: data.buyerName,
-        salePriceUZS: data.currency === 'UZS' ? data.totalPrice : data.totalPrice * (exchangeRate || 12700),
-        salePriceUSD: data.currency === 'USD' ? data.totalPrice : data.totalPrice / (exchangeRate || 12700),
-        purchasePriceUZS: phone?.purchasePriceUZS || 0,
-        purchasePriceUSD: phone?.purchasePriceUSD || 0,
-        profit: profit,
-        paymentMethod: 'Nasiya',
-        isPaid: remainingDebt <= 0,
-        initialPayment: data.initialPayment,
-        saleDate: saleDate,
-        shopId,
-        createdAt: serverTimestamp(),
-      });
 
       const schedule = [];
       if (data.months > 1) {
@@ -354,15 +351,46 @@ const CreditsPage = () => {
         }
       }
 
-      // 2. Create credit record
-      await addDoc(collection(db, 'credits'), {
+      // Atomik batch: Sotuv, Nasiya va Telefon statusi bir vaqtda o'zgaradi
+      const batch = writeBatch(db);
+      const saleDocRef = doc(collection(db, 'sales'));
+      const creditDocRef = doc(collection(db, 'credits'));
+
+      const phoneFullName = `${phoneData.brand || ''} ${phoneData.model || ''}${phoneData.ram ? ` (${phoneData.ram})` : ''}`.trim();
+      const phoneImeiStr = phoneData.imei2 ? `${phoneData.imei} / ${phoneData.imei2}` : phoneData.imei;
+
+      // 1. Sale record
+      batch.set(saleDocRef, {
+        phoneId: data.phoneId,
+        phoneName: phoneFullName,
+        phoneImei: phoneImeiStr,
+        uzimei: phoneData.uzimei || "O'tmagan",
+        buyerName: data.buyerName,
+        buyerPhone: data.buyerPhone || '',
+        salePriceUZS: data.currency === 'UZS' ? data.totalPrice : data.totalPrice * (exchangeRate || 12700),
+        salePriceUSD: data.currency === 'USD' ? data.totalPrice : data.totalPrice / (exchangeRate || 12700),
+        purchasePriceUZS: phoneData.purchasePriceUZS || 0,
+        purchasePriceUSD: phoneData.purchasePriceUSD || 0,
+        profit: profit,
+        paymentMethod: 'Nasiya',
+        isPaid: remainingDebt <= 0,
+        initialPayment: data.initialPayment,
+        saleDate: saleDate,
+        shopId,
+        status: 'Sotilgan',
+        creditId: creditDocRef.id,
+        createdAt: serverTimestamp(),
+      });
+
+      // 2. Credit record
+      batch.set(creditDocRef, {
         ...data,
-        saleId: saleRef.id,
+        saleId: saleDocRef.id,
         shopId,
         remainingDebt,
         status,
-        phoneName: `${phone?.brand} ${phone?.model}`,
-        phoneImei: phone?.imei,
+        phoneName: phoneFullName,
+        phoneImei: phoneImeiStr,
         monthlyPaymentAmount: data.months > 1 ? remainingDebt / data.months : remainingDebt,
         paymentSchedule: schedule,
         paymentHistory: data.initialPayment > 0 ? [{
@@ -375,26 +403,32 @@ const CreditsPage = () => {
       });
 
       // 3. Update phone status
-      await updateDoc(doc(db, 'phones', data.phoneId), {
+      batch.update(phoneRef, {
         status: 'Qarzda',
         buyerName: data.buyerName,
         isArchived: true,
       });
 
+      await batch.commit();
+
       // 4. Save contact
-      await addDoc(collection(db, 'contacts'), {
-        name: data.buyerName,
-        phone: data.buyerPhone || '',
-        type: 'buyer',
-        shopId,
-        createdAt: serverTimestamp(),
-      });
+      try {
+        await addDoc(collection(db, 'contacts'), {
+          name: data.buyerName,
+          phone: data.buyerPhone || '',
+          type: 'buyer',
+          shopId,
+          createdAt: serverTimestamp(),
+        });
+      } catch (cErr) {
+        console.warn('Contact save warning:', cErr);
+      }
 
       // Send SMS notification if enabled
       if (shopData?.smsEnabled && shopData?.smsOnNewCredit && data.buyerPhone) {
         const remainingDebt = data.totalPrice - data.initialPayment;
         const monthlyPaymentAmount = data.months > 1 ? remainingDebt / data.months : remainingDebt;
-        const smsMessage = `Hurmatli ${data.buyerName}, sizning nomingizga ${phone?.brand} ${phone?.model} telefoni uchun ${data.totalPrice.toLocaleString()} ${data.currency} miqdoridagi qarz shartnomasi rasmiylashtirildi. Boshlang'ich to'lov: ${data.initialPayment.toLocaleString()} ${data.currency}. Oylik to'lov: ${monthlyPaymentAmount.toLocaleString()} ${data.currency}. Xaridingiz uchun rahmat!`;
+        const smsMessage = `Hurmatli ${data.buyerName}, sizning nomingizga ${phoneFullName} telefoni uchun ${data.totalPrice.toLocaleString()} ${data.currency} miqdoridagi qarz shartnomasi rasmiylashtirildi. Boshlang'ich to'lov: ${data.initialPayment.toLocaleString()} ${data.currency}. Oylik to'lov: ${monthlyPaymentAmount.toLocaleString()} ${data.currency}. Xaridingiz uchun rahmat!`;
         
         sendShopSms(shopId, shopData, data.buyerPhone, smsMessage).then((res) => {
           if (res.success) {
@@ -484,24 +518,49 @@ const CreditsPage = () => {
   };
 
   const onReturn = async () => {
+    if (submitting) return;
     try {
       setSubmitting(true);
       
-      // 1. Create return record
       const refundUSD = returnForm.refundCurrency === 'USD'
         ? returnForm.refundAmount
         : returnForm.refundAmount / (exchangeRate || 12700);
       const refundUZS = returnForm.refundCurrency === 'UZS'
         ? returnForm.refundAmount
         : returnForm.refundAmount * (exchangeRate || 12700);
-      await addDoc(collection(db, 'returns'), {
+
+      // Agar eski kreditlarda saleId bo'lmasa, sales to'plamidan qidirish
+      let linkedSaleId = selectedCredit.saleId;
+      if (!linkedSaleId && selectedCredit.phoneId) {
+        try {
+          const sSnap = await getDocs(query(
+            collection(db, 'sales'),
+            where('shopId', '==', shopId),
+            where('phoneId', '==', selectedCredit.phoneId),
+            where('paymentMethod', '==', 'Nasiya')
+          ));
+          if (!sSnap.empty) {
+            const activeSale = sSnap.docs.find(d => d.data().status !== 'Qaytarilgan') || sSnap.docs[0];
+            if (activeSale) linkedSaleId = activeSale.id;
+          }
+        } catch (e) {
+          console.warn('Error finding legacy sale for credit:', e);
+        }
+      }
+
+      const batch = writeBatch(db);
+
+      // 1. Create return record
+      const returnDocRef = doc(collection(db, 'returns'));
+      batch.set(returnDocRef, {
         reason: returnForm.reason,
         refundAmount: refundUZS,
         refundAmountUSD: refundUSD,
         refundAmountUZS: refundUZS,
         refundCurrency: returnForm.refundCurrency || 'USD',
         newPhoneStatus: returnForm.newPhoneStatus,
-        saleId: selectedCredit.id,
+        saleId: linkedSaleId || selectedCredit.id,
+        creditId: selectedCredit.id,
         phoneId: selectedCredit.phoneId,
         phoneName: selectedCredit.phoneName,
         phoneImei: selectedCredit.phoneImei,
@@ -511,7 +570,8 @@ const CreditsPage = () => {
       });
 
       // 2. Update credit status
-      await updateDoc(doc(db, 'credits', selectedCredit.id), {
+      const creditRef = doc(db, 'credits', selectedCredit.id);
+      batch.update(creditRef, {
         status: 'Qaytarilgan',
         remainingDebt: 0,
         returnReason: returnForm.reason,
@@ -519,13 +579,30 @@ const CreditsPage = () => {
         returnedAt: serverTimestamp(),
       });
 
-      // 3. Update phone status
-      if (selectedCredit.phoneId) {
-        await updateDoc(doc(db, 'phones', selectedCredit.phoneId), {
-          status: returnForm.newPhoneStatus,
-          isArchived: false,
+      // 3. Update the linked sale document so it no longer counts as an active sale!
+      if (linkedSaleId) {
+        const saleRef = doc(db, 'sales', linkedSaleId);
+        batch.update(saleRef, {
+          status: 'Qaytarilgan',
+          returnReason: returnForm.reason,
+          returnedAt: serverTimestamp(),
+          refundAmountUSD: refundUSD,
+          refundAmountUZS: refundUZS,
+          refundCurrency: returnForm.refundCurrency || 'USD',
         });
       }
+
+      // 4. Update phone status
+      if (selectedCredit.phoneId) {
+        const phoneRef = doc(db, 'phones', selectedCredit.phoneId);
+        batch.update(phoneRef, {
+          status: returnForm.newPhoneStatus,
+          isArchived: returnForm.newPhoneStatus === 'Sotilgan' || returnForm.newPhoneStatus === 'Qaytarilgan',
+          returnedAt: serverTimestamp(),
+        });
+      }
+
+      await batch.commit();
 
       await logAction(currentUser.uid, 'credit_returned', { creditId: selectedCredit.id, buyer: selectedCredit.buyerName });
       toast.success('Tovar qaytarildi');

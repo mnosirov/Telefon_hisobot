@@ -68,6 +68,7 @@ const PhonesPage = () => {
   const [deleteLoading, setDeleteLoading] = useState(false);
   const [imageFiles, setImageFiles] = useState([]);
   const [uploadingImages, setUploadingImages] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [sortField, setSortField] = useState('purchaseDate');
   const [sortDir, setSortDir] = useState('desc');
@@ -288,22 +289,49 @@ const PhonesPage = () => {
       return;
     }
 
-    // Check for duplicate IMEI
+    // Check for duplicate IMEI directly in Firestore across both IMEI 1 and IMEI 2
     if (cleanedImei) {
-      // Allow duplicate IMEI if all existing ones are sold
-      const isDuplicate = phones.find(p => 
-        p.imei === cleanedImei && 
-        p.id !== editingPhone?.id && 
-        p.status !== 'Sotilgan' && 
-        !p.isDeleted
-      );
-      if (isDuplicate) {
-        toast.error('Ushbu IMEI bazada (sotuvda) mavjud!');
+      const snap1 = await getDocs(query(
+        collection(db, 'phones'),
+        where('shopId', '==', shopId),
+        where('imei', '==', cleanedImei)
+      ));
+      const snap2 = await getDocs(query(
+        collection(db, 'phones'),
+        where('shopId', '==', shopId),
+        where('imei2', '==', cleanedImei)
+      ));
+      const dup = [...snap1.docs, ...snap2.docs].find(d => d.id !== editingPhone?.id && !d.data().isDeleted);
+      if (dup) {
+        const dData = dup.data();
+        toast.error(`Ushbu IMEI 1 (${cleanedImei}) bazada allaqachon mavjud! (Holati: ${dData.status || 'Mavjud'}, Model: ${dData.brand || ''} ${dData.model || ''})`);
         return;
       }
     }
 
+    if (cleanedImei2) {
+      const snap1 = await getDocs(query(
+        collection(db, 'phones'),
+        where('shopId', '==', shopId),
+        where('imei', '==', cleanedImei2)
+      ));
+      const snap2 = await getDocs(query(
+        collection(db, 'phones'),
+        where('shopId', '==', shopId),
+        where('imei2', '==', cleanedImei2)
+      ));
+      const dup = [...snap1.docs, ...snap2.docs].find(d => d.id !== editingPhone?.id && !d.data().isDeleted);
+      if (dup) {
+        const dData = dup.data();
+        toast.error(`Ushbu IMEI 2 (${cleanedImei2}) bazada allaqachon mavjud! (Holati: ${dData.status || 'Mavjud'}, Model: ${dData.brand || ''} ${dData.model || ''})`);
+        return;
+      }
+    }
+
+    if (submitting || uploadingImages) return;
+
     try {
+      setSubmitting(true);
       setUploadingImages(true);
       
       const rate = usdRate;
@@ -388,6 +416,7 @@ const PhonesPage = () => {
       toast.error('Xato yuz berdi: ' + (err.message || "Noma'lum xato"));
     } finally {
       setUploadingImages(false);
+      setSubmitting(false);
     }
   };
 
@@ -1144,8 +1173,8 @@ const PhonesPage = () => {
 
           <div className="flex justify-end gap-3 pt-2">
             <button type="button" onClick={() => setModalOpen(false)} className="btn-secondary">Bekor qilish</button>
-            <button type="submit" disabled={uploadingImages} className="btn-primary">
-              {uploadingImages ? (
+            <button type="submit" disabled={uploadingImages || submitting} className="btn-primary">
+              {uploadingImages || submitting ? (
                 <span className="flex items-center gap-2">
                   <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                   Saqlanmoqda...

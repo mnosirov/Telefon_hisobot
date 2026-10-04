@@ -1,5 +1,5 @@
 import { useState, useRef } from 'react';
-import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, addDoc, serverTimestamp, getDocs, query, where } from 'firebase/firestore';
 import { db } from '../../firebase/config';
 import { useAuth } from '../../contexts/AuthContext';
 import { useSettings } from '../../contexts/SettingsContext';
@@ -25,6 +25,92 @@ const ImportModal = ({ isOpen, onClose, onImportSuccess }) => {
 
   const fileInputRef = useRef(null);
 
+  const processAndCheckDuplicates = async (rawPhones) => {
+    if (!shopId || rawPhones.length === 0) {
+      setParsedData(rawPhones);
+      setSelectedIndices(rawPhones.map((_, idx) => idx));
+      return;
+    }
+
+    try {
+      // 1. Fetch all existing phones in this shop
+      const q = query(
+        collection(db, 'phones'),
+        where('shopId', '==', shopId)
+      );
+      const snap = await getDocs(q);
+      const existingImeis = new Map(); // imei -> status
+      snap.forEach((d) => {
+        const data = d.data();
+        if (data.isDeleted) return; // Faqat o'chirilmaganlarni tekshirish
+        if (data.imei) existingImeis.set(String(data.imei).replace(/\D/g, ''), data.status || 'Mavjud');
+        if (data.imei2) existingImeis.set(String(data.imei2).replace(/\D/g, ''), data.status || 'Mavjud');
+      });
+
+      // 2. Cross-check against DB and within current import batch
+      const seenInBatch = new Set();
+      const processed = rawPhones.map((phone) => {
+        const cleanImei = phone.imei ? String(phone.imei).replace(/\D/g, '') : '';
+        const cleanImei2 = phone.imei2 ? String(phone.imei2).replace(/\D/g, '') : '';
+
+        let duplicateReason = null;
+        if (cleanImei) {
+          if (existingImeis.has(cleanImei)) {
+            duplicateReason = `Bazada mavjud (${existingImeis.get(cleanImei)})`;
+          } else if (seenInBatch.has(cleanImei)) {
+            duplicateReason = "Faylning o'zida takrorlangan";
+          }
+          seenInBatch.add(cleanImei);
+        }
+
+        if (!duplicateReason && cleanImei2) {
+          if (existingImeis.has(cleanImei2)) {
+            duplicateReason = `IMEI 2 bazada mavjud (${existingImeis.get(cleanImei2)})`;
+          } else if (seenInBatch.has(cleanImei2)) {
+            duplicateReason = "IMEI 2 faylning o'zida takrorlangan";
+          }
+          seenInBatch.add(cleanImei2);
+        }
+
+        return {
+          ...phone,
+          imei: cleanImei,
+          imei2: cleanImei2,
+          duplicateReason,
+          isDuplicate: !!duplicateReason,
+        };
+      });
+
+      setParsedData(processed);
+      // Auto-select only non-duplicates!
+      const validIndices = processed
+        .map((p, idx) => (!p.isDuplicate ? idx : null))
+        .filter((idx) => idx !== null);
+      setSelectedIndices(validIndices);
+
+      const dupCount = processed.filter((p) => p.isDuplicate).length;
+      if (dupCount > 0) {
+        toast(
+          `Diqqat: ${dupCount} ta telefon bazada mavjud yoki takrorlanganligi sababli tanlovdan olib tashlandi!`,
+          { icon: '⚠️', duration: 5000 }
+        );
+      } else {
+        toast.success(`${processed.length} ta telefon topildi, takrorlanish yo'q.`);
+      }
+    } catch (err) {
+      console.error('Error checking duplicate IMEIs:', err);
+      setParsedData(rawPhones);
+      setSelectedIndices(rawPhones.map((_, idx) => idx));
+    }
+  };
+
+  const handleRemoveDuplicates = () => {
+    const nonDups = parsedData.filter(p => !p.isDuplicate);
+    setParsedData(nonDups);
+    setSelectedIndices(nonDups.map((_, idx) => idx));
+    toast.success("Barcha takrorlangan telefonlar ro'yxatdan o'chirildi.");
+  };
+
   const handleFileChange = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -48,10 +134,7 @@ const ImportModal = ({ isOpen, onClose, onImportSuccess }) => {
       if (phones.length === 0) {
         toast.error('Fayldan telefon ma\'lumotlarini o\'qib bo\'lmadi. Jadval shaklini tekshiring.');
       } else {
-        toast.success(`${phones.length} ta telefon topildi.`);
-        setParsedData(phones);
-        // Barchasini belgilash
-        setSelectedIndices(phones.map((_, idx) => idx));
+        await processAndCheckDuplicates(phones);
       }
     } catch (err) {
       console.error(err);
@@ -62,7 +145,7 @@ const ImportModal = ({ isOpen, onClose, onImportSuccess }) => {
     }
   };
 
-  const handleTextParse = () => {
+  const handleTextParse = async () => {
     if (!rawText.trim()) {
       toast.error('Matnni kiriting.');
       return;
@@ -73,9 +156,7 @@ const ImportModal = ({ isOpen, onClose, onImportSuccess }) => {
       if (phones.length === 0) {
         toast.error('Matndan telefon ma\'lumotlarini aniqlab bo\'lmadi. Har bir telefon yangi qatorda ekanligini tekshiring.');
       } else {
-        toast.success(`${phones.length} ta telefon aniqlandi.`);
-        setParsedData(phones);
-        setSelectedIndices(phones.map((_, idx) => idx));
+        await processAndCheckDuplicates(phones);
       }
     } catch (err) {
       toast.error('Matnni tahlil qilishda xato: ' + err.message);
@@ -157,9 +238,10 @@ const ImportModal = ({ isOpen, onClose, onImportSuccess }) => {
   };
 
   const handleSaveImport = async () => {
-    const selectedPhones = parsedData.filter((_, idx) => selectedIndices.includes(idx));
+    if (loading) return;
+    const selectedPhones = parsedData.filter((_, idx) => selectedIndices.includes(idx) && !_.isDuplicate);
     if (selectedPhones.length === 0) {
-      toast.error('Import qilish uchun hech bo\'lmasa bitta telefonni tanlang.');
+      toast.error('Import qilish uchun hech bo\'lmasa bitta to\'g\'ri telefonni tanlang (takrorlanganlar saqlanmaydi).');
       return;
     }
 
@@ -177,6 +259,7 @@ const ImportModal = ({ isOpen, onClose, onImportSuccess }) => {
 
     setLoading(true);
     let successCount = 0;
+    let skippedCount = 0;
     try {
       const rate = exchangeRate || 12700;
 
@@ -184,6 +267,30 @@ const ImportModal = ({ isOpen, onClose, onImportSuccess }) => {
       for (const phone of selectedPhones) {
         const cleanImei = phone.imei?.replace(/\D/g, '') || '';
         const cleanImei2 = phone.imei2?.replace(/\D/g, '') || '';
+
+        // Yakuniy DB tekshiruvi (agar kimdir shu soniyada kiritgan bo'lsa)
+        if (cleanImei) {
+          const existSnap = await getDocs(query(
+            collection(db, 'phones'),
+            where('shopId', '==', shopId),
+            where('imei', '==', cleanImei)
+          ));
+          if (existSnap.docs.some(d => !d.data().isDeleted)) {
+            skippedCount++;
+            continue;
+          }
+        }
+        if (cleanImei2) {
+          const existSnap2 = await getDocs(query(
+            collection(db, 'phones'),
+            where('shopId', '==', shopId),
+            where('imei', '==', cleanImei2)
+          ));
+          if (existSnap2.docs.some(d => !d.data().isDeleted)) {
+            skippedCount++;
+            continue;
+          }
+        }
 
         const purchasePriceUSD = Number(phone.purchasePrice) || 0;
         const purchasePriceUZS = purchasePriceUSD * rate;
@@ -196,28 +303,28 @@ const ImportModal = ({ isOpen, onClose, onImportSuccess }) => {
           purchasePriceUSD,
           purchasePriceUZS,
           usdRate: rate,
+          status: 'Sotuvda',
           createdAt: serverTimestamp(),
           updatedAt: serverTimestamp(),
         };
 
-        // Undefined qiymatlarni o'chirish
+        // Undefined va yordamchi qiymatlarni o'chirish
+        delete payload.isDuplicate;
+        delete payload.duplicateReason;
         Object.keys(payload).forEach(key => {
           if (payload[key] === undefined) delete payload[key];
         });
 
         const newRef = await addDoc(collection(db, 'phones'), payload);
-        
-        // Yetkazib beruvchini kontaktlarga qo'shish (agar nomi kiritilgan bo'lsa)
-        if (phone.supplierName) {
-          // Oddiy importda har doim bazaga yangi yetkazib beruvchi qo'shilmasligi uchun,
-          // istalgancha avval mavjudligini tekshirishni bu yerda chetlab o'tamiz (yoki ContactsPage orqali qilinadi)
-        }
-
         await logAction(currentUser.uid, 'phone_added_bulk', { phoneId: newRef.id, model: phone.model });
         successCount++;
       }
 
-      toast.success(`${successCount} ta telefon muvaffaqiyatli import qilindi!`);
+      if (skippedCount > 0) {
+        toast.success(`${successCount} ta telefon import qilindi (${skippedCount} ta takrorlangan o'tkazib yuborildi)`);
+      } else {
+        toast.success(`${successCount} ta telefon muvaffaqiyatli import qilindi!`);
+      }
       setParsedData([]);
       setSelectedIndices([]);
       setRawText('');
@@ -357,7 +464,18 @@ iPhone 14 Pro Max 256GB Silver IMEI:359876543210987 Narxi:$950 Yangi`}
                   Jami: {parsedData.length} ta | Tanlandi: {selectedIndices.length} ta
                 </p>
               </div>
-              <div className="flex gap-2">
+              <div className="flex gap-2 flex-wrap">
+                {parsedData.some(p => p.isDuplicate) && (
+                  <button
+                    type="button"
+                    onClick={handleRemoveDuplicates}
+                    className="btn-danger text-xs flex items-center gap-1.5"
+                    title="Takrorlangan qatorlarni ro'yxatdan olib tashlash"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                    Takrorlanganlarni tozalash ({parsedData.filter(p => p.isDuplicate).length})
+                  </button>
+                )}
                 <button
                   onClick={() => { setParsedData([]); setSelectedIndices([]); }}
                   className="btn-secondary text-xs"
@@ -366,7 +484,7 @@ iPhone 14 Pro Max 256GB Silver IMEI:359876543210987 Narxi:$950 Yangi`}
                 </button>
                 <button
                   onClick={handleSaveImport}
-                  disabled={loading}
+                  disabled={loading || selectedIndices.length === 0}
                   className="btn-primary text-xs flex items-center gap-1.5"
                 >
                   <Check className="w-4 h-4" />
@@ -458,10 +576,15 @@ iPhone 14 Pro Max 256GB Silver IMEI:359876543210987 Narxi:$950 Yangi`}
                               value={phone.imei}
                               onChange={(e) => handleCellChange(idx, 'imei', e.target.value)}
                               className={`w-full px-2 py-1 border rounded bg-white dark:bg-dark-800 font-mono text-dark-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-primary-500 ${
-                                !isWifiTablet && (!phone.imei || !validateIMEI(phone.imei)) ? 'border-red-500 text-red-500' : 'border-dark-200 dark:border-dark-700'
+                                phone.isDuplicate || (!isWifiTablet && (!phone.imei || !validateIMEI(phone.imei))) ? 'border-red-500 text-red-500 font-bold' : 'border-dark-200 dark:border-dark-700'
                               }`}
                               placeholder={isWifiTablet ? 'ixtiyoriy' : '35...'}
                             />
+                            {phone.duplicateReason && (
+                              <span className="text-[10px] text-red-500 font-semibold block leading-tight mt-0.5">
+                                ⚠️ {phone.duplicateReason}
+                              </span>
+                            )}
                           </td>
                           {/* IMEI 2 */}
                           <td className="p-1">

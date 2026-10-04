@@ -207,13 +207,29 @@ const SalesPage = () => {
   };
 
   const onSubmit = async (data) => {
+    if (submitting) return;
     try {
       setSubmitting(true);
+
+      // Telefon holatini to'g'ridan-to'g'ri bazadan yangilangan holatda tekshirish (qayta sotilishni oldini olish)
+      const phoneRef = doc(db, 'phones', data.phoneId);
+      const phoneSnap = await getDoc(phoneRef);
+      if (!phoneSnap.exists() || phoneSnap.data().isDeleted) {
+        toast.error("Bu telefon bazadan topilmadi!");
+        fetchData();
+        return;
+      }
+      const phoneData = phoneSnap.data();
+      if (phoneData.status !== 'Sotuvda') {
+        toast.error(`Bu telefon allaqachon sotilgan yoki sotuvda emas (Holati: ${phoneData.status})!`);
+        fetchData();
+        return;
+      }
+
       const rate = usdRate;
       const salePriceUZS = data.salePriceCurrency === 'USD' ? data.salePrice * rate : data.salePrice;
       const salePriceUSD = data.salePriceCurrency === 'USD' ? data.salePrice : data.salePrice / rate;
-      const phone = phones.find((p) => p.id === data.phoneId);
-      const profit = salePriceUZS - (phone?.purchasePriceUZS || 0);
+      const profit = salePriceUZS - (phoneData.purchasePriceUZS || 0);
 
       let finalSaleDate = new Date();
       if (data.saleDate) {
@@ -229,13 +245,13 @@ const SalesPage = () => {
         ...data,
         shopId,
         salePriceUZS, salePriceUSD,
-        purchasePriceUZS: phone?.purchasePriceUZS || 0,
-        purchasePriceUSD: phone?.purchasePriceUSD || 0,
+        purchasePriceUZS: phoneData.purchasePriceUZS || 0,
+        purchasePriceUSD: phoneData.purchasePriceUSD || 0,
         profit,
         usdRate: rate,
-        phoneName: `${phone?.brand} ${phone?.model}${phone?.ram ? ` (${phone.ram})` : ''}`,
-        phoneImei: phone?.imei2 ? `${phone.imei} / ${phone.imei2}` : phone?.imei,
-        uzimei: phone?.uzimei || "O'tmagan",
+        phoneName: `${phoneData.brand || ''} ${phoneData.model || ''}${phoneData.ram ? ` (${phoneData.ram})` : ''}`.trim(),
+        phoneImei: phoneData.imei2 ? `${phoneData.imei} / ${phoneData.imei2}` : phoneData.imei,
+        uzimei: phoneData.uzimei || "O'tmagan",
         status: 'Sotilgan',
         warranty: data.warranty || '',
         saleDate: finalSaleDate,
@@ -247,31 +263,40 @@ const SalesPage = () => {
         if (payload[key] === undefined) delete payload[key];
       });
 
-      await addDoc(collection(db, 'sales'), payload);
+      // Atomik tranzaksiya / batch: Sotuv va telefon statusi bir vaqtda o'zgaradi
+      const batch = writeBatch(db);
+      const newSaleRef = doc(collection(db, 'sales'));
+      batch.set(newSaleRef, payload);
 
-      if (data.buyerName && data.buyerName.toLowerCase() !== 'nomalum') {
-        const existSnap = await getDocs(query(
-          collection(db, 'contacts'),
-          where('shopId', '==', shopId),
-          where('name', '==', data.buyerName),
-          where('phone', '==', data.buyerPhone || ''),
-          where('type', '==', 'buyer')
-        ));
-        if (existSnap.empty) {
-          await addDoc(collection(db, 'contacts'), {
-            name: data.buyerName, phone: data.buyerPhone || '',
-            type: 'buyer', shopId, createdAt: serverTimestamp(),
-          });
-        }
-      }
-
-      await updateDoc(doc(db, 'phones', data.phoneId), {
+      batch.update(phoneRef, {
         status: 'Sotilgan', 
         soldAt: finalSaleDate, 
         buyerName: data.buyerName,
         warranty: data.warranty || '',
         isArchived: true,
       });
+
+      await batch.commit();
+
+      if (data.buyerName && data.buyerName.toLowerCase() !== 'nomalum') {
+        try {
+          const existSnap = await getDocs(query(
+            collection(db, 'contacts'),
+            where('shopId', '==', shopId),
+            where('name', '==', data.buyerName),
+            where('phone', '==', data.buyerPhone || ''),
+            where('type', '==', 'buyer')
+          ));
+          if (existSnap.empty) {
+            await addDoc(collection(db, 'contacts'), {
+              name: data.buyerName, phone: data.buyerPhone || '',
+              type: 'buyer', shopId, createdAt: serverTimestamp(),
+            });
+          }
+        } catch (e) {
+          console.warn('Contacts update warning:', e);
+        }
+      }
 
       await logAction(currentUser.uid, 'sale_created', { phoneId: data.phoneId, buyer: data.buyerName });
       toast.success("Sotuv qo'shildi");
